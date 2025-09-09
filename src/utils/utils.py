@@ -1,8 +1,11 @@
+"""Runtime configuration and small text utilities for Flowl."""
+
 import argparse
 
 # TODO min, max validation (not necessary for now)
 
 def get_args() -> argparse.Namespace:
+    """Parse CLI arguments for audio rates, throttling and language settings."""
     parser = argparse.ArgumentParser(description="Flowl - a real-time lightweight offline translator",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--rate", type=int, default=16000, help = "Audio rate Hz")
@@ -30,6 +33,7 @@ MT_MODEL_PATH = "Helsinki-NLP/opus-mt-en-ru" if args.from_code == "en" else "Hel
 
 
 def filter_partial(text: str) -> str:
+    """Trim a partial string to the last MAX_PARTIAL_WORDS words."""
     words = text.split()
     if len(words) > MAX_PARTIAL_WORDS:
         text = " ".join(words[-MAX_PARTIAL_WORDS:])

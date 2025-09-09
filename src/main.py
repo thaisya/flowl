@@ -1,7 +1,18 @@
+"""Application entry point for Flowl real-time translator."""
+
 import time
-from audio.threads import *
+from src.audio import (
+    workers_init,
+    stream,
+    t_asr,
+    t_mt,
+    p,
+    audio_q,
+    events_q,
+)
 
 def main():
+    """Initialize audio workers and keep the main loop alive until interrupted."""
     workers_init()
     try:
         while stream.is_active():
@@ -12,6 +23,7 @@ def main():
         shutdown()
 
 def shutdown():
+    """Gracefully stop audio stream, signal threads to exit, and cleanup resources."""
     stream.stop_stream()
     stream.close()
     audio_q.put(None)

@@ -1,3 +1,5 @@
+"""ASR and MT worker threads and PyAudio stream setup."""
+
 import threading
 import json
 import time
@@ -5,19 +7,21 @@ import queue
 import pyaudio
 from .queues import audio_q, events_q
 from .callback import audio_callback
-from utils.models import recognizer, translate
-from utils.utils import (
+from ..utils import (
     AUDIO_RATE,
     FRAMES_PER_BUFFER,
     THROTTLE_MS,
     MIN_PARTIAL_CHARS,
     MIN_PARTIAL_WORDS,
     filter_partial,
+    recognizer,
+    translate,
 )
 
 # ------------------- ASR thread -------------------
 
 def asr_thread():
+    """Consume audio chunks, produce ASR events (partial/final) into `events_q`."""
     prev_partial = ""
     data = ""
     while True:
@@ -50,6 +54,7 @@ def asr_thread():
 # ------------------- MT thread -------------------
 
 def mt_thread():
+    """Consume ASR events, throttle partials, and print translated output."""
     last_emit_time = 0
     last_shown_partial = ""
 
@@ -93,16 +98,19 @@ def mt_thread():
 
 
 p = pyaudio.PyAudio()
-stream = p.open(format=pyaudio.paInt16,
-                channels=1,
-                rate=AUDIO_RATE,
-                input=True,
-                frames_per_buffer=FRAMES_PER_BUFFER,
-                stream_callback=audio_callback)
+stream = p.open(
+    format=pyaudio.paInt16,
+    channels=1,
+    rate=AUDIO_RATE,
+    input=True,
+    frames_per_buffer=FRAMES_PER_BUFFER,
+    stream_callback=audio_callback,
+)
 t_asr = threading.Thread(target=asr_thread, daemon=True)
 t_mt = threading.Thread(target=mt_thread, daemon=True)
 
 def workers_init():
+    """Start the audio stream and worker threads."""
     try:
         stream.start_stream()
         t_asr.start()
