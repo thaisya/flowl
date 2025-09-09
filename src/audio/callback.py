@@ -1,5 +1,6 @@
+import queue
 import pyaudio
-from queues import audio_q
+from .queues import audio_q
 
 def audio_callback(in_data, frame_count, time_info, status):
     try:

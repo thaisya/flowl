@@ -1,7 +1,19 @@
 import threading
 import json
 import time
-from queues import *
+import queue
+import pyaudio
+from .queues import audio_q, events_q
+from .callback import audio_callback
+from utils.models import recognizer, translate
+from utils.utils import (
+    AUDIO_RATE,
+    FRAMES_PER_BUFFER,
+    THROTTLE_MS,
+    MIN_PARTIAL_CHARS,
+    MIN_PARTIAL_WORDS,
+    filter_partial,
+)
 
 # ------------------- ASR thread -------------------
 

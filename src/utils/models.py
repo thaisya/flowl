@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
-from utils import *
+from .utils import *
 
 model = Model(MODEL_PATH)
 recognizer = KaldiRecognizer(model, AUDIO_RATE)

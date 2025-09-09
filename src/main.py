@@ -1,4 +1,5 @@
-from audio import threads
+import time
+from audio.threads import *
 
 def main():
     workers_init()
