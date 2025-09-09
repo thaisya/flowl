@@ -1,16 +1,10 @@
-"""Audio package public API: queues, callback and worker threads."""
+"""Audio package public API."""
 
-from .queues import audio_q, events_q
-from .callback import audio_callback
-from .threads import workers_init, stream, t_asr, t_mt, p
+from .engine import AudioEngine
+from .workers import ASRWorker, MTWorker
 
 __all__ = [
-    "audio_q",
-    "events_q",
-    "audio_callback",
-    "workers_init",
-    "stream",
-    "t_asr",
-    "t_mt",
-    "p",
+    "AudioEngine",
+    "ASRWorker",
+    "MTWorker",
 ]

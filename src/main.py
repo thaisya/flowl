@@ -1,36 +1,23 @@
 """Application entry point for Flowl real-time translator."""
 
 import time
-from src.audio import (
-    workers_init,
-    stream,
-    t_asr,
-    t_mt,
-    p,
-    audio_q,
-    events_q,
-)
+from src.app import FlowlApp
 
 def main():
-    """Initialize audio workers and keep the main loop alive until interrupted."""
-    workers_init()
+    """Create the app, start it, and keep alive until interrupted."""
+    app = FlowlApp()
     try:
-        while stream.is_active():
+        app.start()
+        while app.is_running():
             time.sleep(0.1)
     except KeyboardInterrupt:
         print("Manual exit")
     finally:
-        shutdown()
+        app.stop()
 
 def shutdown():
-    """Gracefully stop audio stream, signal threads to exit, and cleanup resources."""
-    stream.stop_stream()
-    stream.close()
-    audio_q.put(None)
-    events_q.put(("final", "exit"))
-    t_asr.join(timeout=1.0)
-    t_mt.join(timeout=1.0)
-    p.terminate()
+    """Deprecated: kept for backward compatibility; use FlowlApp.stop()."""
+    pass
 
 if __name__ == "__main__":
     main()

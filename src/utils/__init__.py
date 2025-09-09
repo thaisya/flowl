@@ -1,4 +1,4 @@
-"""Utilities package public API: configuration constants and model helpers."""
+"""Utilities package public API: configuration constants and helpers."""
 
 from .utils import (
     AUDIO_RATE,
@@ -13,7 +13,6 @@ from .utils import (
     MT_MODEL_PATH,
     filter_partial,
 )
-from .models import recognizer, translate
 
 __all__ = [
     "AUDIO_RATE",
@@ -27,6 +26,4 @@ __all__ = [
     "MODEL_PATH",
     "MT_MODEL_PATH",
     "filter_partial",
-    "recognizer",
-    "translate",
 ]
