@@ -4,7 +4,7 @@ from typing import Callable, Tuple
 import queue
 import pyaudio
 
-from src.utils import AUDIO_RATE, FRAMES_PER_BUFFER
+from utils import AUDIO_RATE, FRAMES_PER_BUFFER
 
 
 class AudioEngine:

@@ -1,7 +1,7 @@
 """Application entry point for Flowl real-time translator."""
 
 import time
-from src.app import FlowlApp
+from app import FlowlApp
 
 def main():
     """Create the app, start it, and keep alive until interrupted."""

@@ -2,9 +2,9 @@
 
 import queue
 
-from src.audio.engine import AudioEngine
-from src.audio.workers import ASRWorker, MTWorker
-from src.models.bundle import ModelBundle
+from audio.engine import AudioEngine
+from audio.workers import ASRWorker, MTWorker
+from models.bundle import ModelBundle
 
 
 class FlowlApp:

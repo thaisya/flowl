@@ -3,7 +3,7 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
 
-from src.utils.utils import AUDIO_RATE, MODEL_PATH, MT_MODEL_PATH
+from utils.utils import AUDIO_RATE, MODEL_PATH, MT_MODEL_PATH
 
 
 class ModelBundle:

@@ -14,8 +14,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--max-part-words", type=int, default=20, help="Max words to buildup in partial")
     parser.add_argument("--min-part-words", type=int, default=1, help="Min words to translate at once (NOT recommended to change)")
     parser.add_argument("--min-part-chars", type=int, default=1, help="Min chars to translate at once (NOT recommended to change)")
-    parser.add_argument("--from-code", choices=["en", "ru"], default="ru", help="From language")
-    parser.add_argument("--to-code", choices=["en", "ru"], default="en", help="To language")
+    parser.add_argument("--from-code", choices=["en", "ru"], default="en", help="From language")
+    parser.add_argument("--to-code", choices=["en", "ru"], default="ru", help="To language")
     return parser.parse_args()
 
 args = get_args()

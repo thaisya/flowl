@@ -5,7 +5,7 @@ import queue
 import time
 import json
 
-from src.utils import (
+from utils import (
     THROTTLE_MS,
     MIN_PARTIAL_CHARS,
     MIN_PARTIAL_WORDS,
