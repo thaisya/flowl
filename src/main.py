@@ -2,6 +2,7 @@
 
 import time
 from app import FlowlApp
+import sounddevice as sd
 
 def main():
     """Create the app, start it, and keep alive until interrupted."""
@@ -20,5 +21,5 @@ def shutdown():
     pass
 
 if __name__ == "__main__":
-    main()
+    print(sd.query_devices())
 
