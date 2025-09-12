@@ -21,5 +21,6 @@ def shutdown():
     pass
 
 if __name__ == "__main__":
-    print(sd.query_devices())
+    name = "Stereo Mix".lower()
+    print(sd.query_devices()[name])
 
