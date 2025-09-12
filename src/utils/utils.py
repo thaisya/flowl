@@ -38,5 +38,3 @@ def filter_partial(text: str) -> str:
     if len(words) > MAX_PARTIAL_WORDS:
         text = " ".join(words[-MAX_PARTIAL_WORDS:])
     return text
-
-#TODO make a wrapper for the input device index
