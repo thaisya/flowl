@@ -95,7 +95,7 @@ class MTWorker(threading.Thread):
                 print(f"[PARTIAL ERROR] --> {e}")
 
 
-
+#TODO not mine logic and will be deleted soon
 class MixerWorker(threading.Thread):
     def __init__(self, mic_q: queue.Queue, loop_q: queue.Queue, out_q: queue.Queue):
         super().__init__(daemon=True)
@@ -112,15 +112,33 @@ class MixerWorker(threading.Thread):
             return b_bytes
         if b_bytes is None:
             return a_bytes
-        a = np.frombuffer(a_bytes, dtype=np.int16)
-        b = np.frombuffer(b_bytes, dtype=np.int16)
-        if a.shape != b.shape:
-            n = min(a.shape[0], b.shape[0])
-            a = a[:n]
-            b = b[:n]
-        mixed = a.astype(np.int32) + b.astype(np.int32)
-        np.clip(mixed, -32768, 32767, out=mixed)
-        return mixed.astype(np.int16).tobytes()
+        
+        try:
+            # Validate input data length (must be even for int16)
+            if len(a_bytes) % 2 != 0 or len(b_bytes) % 2 != 0:
+                print(f"[MIXER WARNING] Invalid audio data length - skipping frame")
+                return None
+            
+            a = np.frombuffer(a_bytes, dtype=np.int16)
+            b = np.frombuffer(b_bytes, dtype=np.int16)
+            
+            # Ensure we have valid audio data
+            if len(a) == 0 or len(b) == 0:
+                print(f"[MIXER WARNING] Empty audio data - skipping frame")
+                return None
+                
+            if a.shape != b.shape:
+                n = min(a.shape[0], b.shape[0])
+                a = a[:n]
+                b = b[:n]
+            
+            mixed = a.astype(np.int32) + b.astype(np.int32)
+            np.clip(mixed, -32768, 32767, out=mixed)
+            return mixed.astype(np.int16).tobytes()
+            
+        except (ValueError, TypeError) as e:
+            print(f"[MIXER ERROR] Invalid audio data format: {e}")
+            return None
 
     def run(self) -> None:
         while True:

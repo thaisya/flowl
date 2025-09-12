@@ -29,12 +29,12 @@ class FlowlApp:
         if mic_device:
             mic_index = mic_device
             self.audio_mic = AudioEngine(on_audio=self._on_audio_mic, device_index=mic_index)
-            print(f"✓ Created microphone audio engine")
+            print(f"✓ Created microphone audio engine (device: {mic_index})")
         
         if loopback_device:
             loop_index = loopback_device
             self.audio_loopback = AudioEngine(on_audio=self._on_audio_loopback, device_index=loop_index)
-            print(f"✓ Created loopback audio engine")
+            print(f"✓ Created loopback audio engine (device: {loop_index})")
         
         self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer)
         self.mt = MTWorker(self.events_q, self.models.translate)
@@ -42,25 +42,39 @@ class FlowlApp:
 
     def _on_audio_mic(self, in_data: bytes) -> None:
         """Callback for microphone audio data."""
-        self.mic_q.put_nowait(in_data)
+        try:
+            self.mic_q.put_nowait(in_data)
+        except queue.Full:
+            # Drop oldest data to make room for new data (FIFO behavior)
+            try:
+                self.mic_q.get_nowait()  # Remove oldest item
+                self.mic_q.put_nowait(in_data)  # Add new item
+            except queue.Empty:
+                pass  # Queue was already empty, just skip this frame
     
     def _on_audio_loopback(self, in_data: bytes) -> None:
         """Callback for loopback audio data."""
-        self.loop_q.put_nowait(in_data)
+        try:
+            self.loop_q.put_nowait(in_data)
+        except queue.Full:
+            # Drop oldest data to make room for new data (FIFO behavior)
+            try:
+                self.loop_q.get_nowait()  # Remove oldest item
+                self.loop_q.put_nowait(in_data)  # Add new item
+            except queue.Empty:
+                pass  # Queue was already empty, just skip this frame
     
     def start(self) -> None:
         # Start both audio engines if available
         if self.audio_mic:
             self.audio_mic.start()
-            mic_info = self.device_manager.get_working_microphone()
-            mic_index = mic_info[1] if isinstance(mic_info, tuple) else self.device_manager.get_input_microphone_index()
-            print(f"✓ Microphone audio engine started (index: {mic_index})")
+            # Device index is already stored in the audio engine
+            print(f"✓ Microphone audio engine started")
         
         if self.audio_loopback:
             self.audio_loopback.start()
-            loop_info = self.device_manager.get_working_loopback()
-            loop_index = loop_info[1] if isinstance(loop_info, tuple) else self.device_manager.get_input_loopback_index()
-            print(f"✓ Loopback audio engine started (index: {loop_index})")
+            # Device index is already stored in the audio engine
+            print(f"✓ Loopback audio engine started")
 
         # Start mixer if at least one source exists
         if self.audio_mic or self.audio_loopback:
@@ -84,31 +98,56 @@ class FlowlApp:
         return mic_active or loopback_active
 
     def stop(self) -> None:
-        # signal threads to stop and cleanup
-        # propagate sentinel to mixer inputs
-        try:
-            self.mic_q.put_nowait(None)
-        except Exception:
-            pass
-        try:
-            self.loop_q.put_nowait(None)
-        except Exception:
-            pass
-        self.audio_q.put(None)  # in case mixer was not started
-        self.events_q.put(("final", "exit"))  # MTWorker exits on this sentinel
+        """Stop all audio engines and worker threads gracefully."""
+        print("Stopping FlowlApp...")
         
-        # Only join threads that are actually running
-        if self.asr.is_alive():
-            self.asr.join(timeout=1.0)
-        if self.mt.is_alive():
-            self.mt.join(timeout=1.0)
-        
-        # Stop both audio engines
+        # Stop audio engines first to prevent new data from entering queues
         if self.audio_mic:
             self.audio_mic.stop()
+            print("✓ Microphone audio engine stopped")
         if self.audio_loopback:
             self.audio_loopback.stop()
-
-        # Join mixer thread
+            print("✓ Loopback audio engine stopped")
+        
+        # Signal threads to stop by sending sentinel values
+        try:
+            self.mic_q.put_nowait(None)
+        except queue.Full:
+            pass  # Queue might be full, that's okay
+        except Exception as e:
+            print(f"Warning: Error sending mic sentinel: {e}")
+            
+        try:
+            self.loop_q.put_nowait(None)
+        except queue.Full:
+            pass  # Queue might be full, that's okay
+        except Exception as e:
+            print(f"Warning: Error sending loopback sentinel: {e}")
+            
+        try:
+            self.audio_q.put(None)  # in case mixer was not started
+        except Exception as e:
+            print(f"Warning: Error sending audio sentinel: {e}")
+            
+        try:
+            self.events_q.put(("final", "exit"))  # MTWorker exits on this sentinel
+        except Exception as e:
+            print(f"Warning: Error sending events sentinel: {e}")
+        
+        # Join worker threads with timeout
+        threads_to_join = []
+        if self.asr.is_alive():
+            threads_to_join.append(("ASR", self.asr))
+        if self.mt.is_alive():
+            threads_to_join.append(("MT", self.mt))
         if self.mixer and self.mixer.is_alive():
-            self.mixer.join(timeout=1.0)
+            threads_to_join.append(("Mixer", self.mixer))
+        
+        for thread_name, thread in threads_to_join:
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                print(f"Warning: {thread_name} thread did not stop within timeout")
+            else:
+                print(f"✓ {thread_name} thread stopped")
+        
+        print("FlowlApp stopped")
