@@ -29,10 +29,10 @@ class DeviceManager:
         return ('stereo mix' in device_name or 'loopback' in device_name or 
                 'what u hear' in device_name)
 
-    def startup_dual(self) -> tuple[tuple[str, int] | None, tuple[str, int] | None]:
+    def startup_dual(self) -> tuple[int | None, int | None]:
         """
         Startup method that finds both microphone and loopback devices.
-        Returns ((mic_type, mic_index), (loopback_type, loopback_index)).
+        Returns (mic_index, loopback_index).
         Either can be None if not available.
         """
         mic_device = None
