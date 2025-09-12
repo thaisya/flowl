@@ -14,6 +14,8 @@ from .utils import (
     filter_partial,
 )
 
+from .device_manager import DeviceManager
+
 __all__ = [
     "AUDIO_RATE",
     "FRAMES_PER_BUFFER",
@@ -26,4 +28,5 @@ __all__ = [
     "MODEL_PATH",
     "MT_MODEL_PATH",
     "filter_partial",
+    "DeviceManager",
 ]

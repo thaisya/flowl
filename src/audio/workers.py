@@ -4,6 +4,7 @@ import threading
 import queue
 import time
 import json
+import numpy as np
 
 from utils import (
     THROTTLE_MS,
@@ -59,7 +60,7 @@ class MTWorker(threading.Thread):
 
         while True:
             try:
-                ev_type, text = self._events_q.get_nowait()
+                ev_type, text = self._events_q.get(timeout=0.1)
             except queue.Empty:
                 continue
 
@@ -93,4 +94,86 @@ class MTWorker(threading.Thread):
             except Exception as e:
                 print(f"[PARTIAL ERROR] --> {e}")
 
+
+#TODO not mine logic and will be deleted soon
+class MixerWorker(threading.Thread):
+    def __init__(self, mic_q: queue.Queue, loop_q: queue.Queue, out_q: queue.Queue):
+        super().__init__(daemon=True)
+        self._mic_q = mic_q
+        self._loop_q = loop_q
+        self._out_q = out_q
+        self._mic_done = False
+        self._loop_done = False
+
+    def _mix_int16(self, a_bytes: bytes | None, b_bytes: bytes | None) -> bytes | None:
+        if a_bytes is None and b_bytes is None:
+            return None
+        if a_bytes is None:
+            return b_bytes
+        if b_bytes is None:
+            return a_bytes
+        
+        try:
+            # Validate input data length (must be even for int16)
+            if len(a_bytes) % 2 != 0 or len(b_bytes) % 2 != 0:
+                print(f"[MIXER WARNING] Invalid audio data length - skipping frame")
+                return None
+            
+            a = np.frombuffer(a_bytes, dtype=np.int16)
+            b = np.frombuffer(b_bytes, dtype=np.int16)
+            
+            # Ensure we have valid audio data
+            if len(a) == 0 or len(b) == 0:
+                print(f"[MIXER WARNING] Empty audio data - skipping frame")
+                return None
+                
+            if a.shape != b.shape:
+                n = min(a.shape[0], b.shape[0])
+                a = a[:n]
+                b = b[:n]
+            
+            mixed = a.astype(np.int32) + b.astype(np.int32)
+            np.clip(mixed, -32768, 32767, out=mixed)
+            return mixed.astype(np.int16).tobytes()
+            
+        except (ValueError, TypeError) as e:
+            print(f"[MIXER ERROR] Invalid audio data format: {e}")
+            return None
+
+    def run(self) -> None:
+        while True:
+            mic_chunk = None
+            loop_chunk = None
+
+            if not self._mic_done:
+                try:
+                    item = self._mic_q.get(timeout=0.05)
+                    if item is None:
+                        self._mic_done = True
+                    else:
+                        mic_chunk = item
+                except queue.Empty:
+                    pass
+
+            if not self._loop_done:
+                try:
+                    item = self._loop_q.get(timeout=0.05)
+                    if item is None:
+                        self._loop_done = True
+                    else:
+                        loop_chunk = item
+                except queue.Empty:
+                    pass
+
+            if self._mic_done and self._loop_done:
+                self._out_q.put(None)
+                break
+
+            mixed = self._mix_int16(mic_chunk, loop_chunk)
+            if mixed is None:
+                continue
+            try:
+                self._out_q.put_nowait(mixed)
+            except queue.Full:
+                continue
 
