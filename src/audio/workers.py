@@ -1,10 +1,10 @@
 """Worker threads for ASR and MT."""
 
 import threading
-import queue
 import time
 import json
 import numpy as np
+from collections import deque
 
 from utils import (
     THROTTLE_MS,
@@ -15,7 +15,7 @@ from utils import (
 
 
 class ASRWorker(threading.Thread):
-    def __init__(self, audio_q: queue.Queue, events_q: queue.Queue, recognizer):
+    def __init__(self, audio_q: deque, events_q: deque, recognizer):
         super().__init__(daemon=True)
         self._audio_q = audio_q
         self._events_q = events_q
@@ -25,10 +25,14 @@ class ASRWorker(threading.Thread):
         prev_partial = ""
         while True:
             try:
-                data = self._audio_q.get(timeout=0.1)
+                if not self._audio_q:
+                    time.sleep(0.1)
+                    continue
+                data = self._audio_q.popleft()
                 if data is None:
                     break
-            except queue.Empty:
+            except IndexError:
+                time.sleep(0.1)
                 continue
 
             try:
@@ -36,20 +40,20 @@ class ASRWorker(threading.Thread):
                     res = json.loads(self._rec.Result())
                     final_text = res.get("text", "").strip()
                     if final_text:
-                        self._events_q.put(("final", final_text))
+                        self._events_q.append(("final", final_text))
                     prev_partial = ""
                 else:
                     pres = json.loads(self._rec.PartialResult())
                     partial_text = pres.get("partial", "").strip()
                     if partial_text and partial_text != prev_partial:
-                        self._events_q.put(("partial", partial_text))
+                        self._events_q.append(("partial", partial_text))
                         prev_partial = partial_text
             except Exception as e:
                 print(f"[ASR ERROR] --> {e}")
 
 
 class MTWorker(threading.Thread):
-    def __init__(self, events_q: queue.Queue, translate_fn):
+    def __init__(self, events_q: deque, translate_fn):
         super().__init__(daemon=True)
         self._events_q = events_q
         self._translate = translate_fn
@@ -60,8 +64,12 @@ class MTWorker(threading.Thread):
 
         while True:
             try:
-                ev_type, text = self._events_q.get(timeout=0.1)
-            except queue.Empty:
+                if not self._events_q:
+                    time.sleep(0.1)
+                    continue
+                ev_type, text = self._events_q.popleft()
+            except IndexError:
+                time.sleep(0.1)
                 continue
 
             if ev_type == "final":
@@ -97,7 +105,7 @@ class MTWorker(threading.Thread):
 
 #TODO not mine logic and will be deleted soon
 class MixerWorker(threading.Thread):
-    def __init__(self, mic_q: queue.Queue, loop_q: queue.Queue, out_q: queue.Queue):
+    def __init__(self, mic_q: deque, loop_q: deque, out_q: deque):
         super().__init__(daemon=True)
         self._mic_q = mic_q
         self._loop_q = loop_q
@@ -147,33 +155,33 @@ class MixerWorker(threading.Thread):
 
             if not self._mic_done:
                 try:
-                    item = self._mic_q.get(timeout=0.05)
-                    if item is None:
-                        self._mic_done = True
-                    else:
-                        mic_chunk = item
-                except queue.Empty:
+                    if self._mic_q:
+                        item = self._mic_q.popleft()
+                        if item is None:
+                            self._mic_done = True
+                        else:
+                            mic_chunk = item
+                except IndexError:
                     pass
 
             if not self._loop_done:
                 try:
-                    item = self._loop_q.get(timeout=0.05)
-                    if item is None:
-                        self._loop_done = True
-                    else:
-                        loop_chunk = item
-                except queue.Empty:
+                    if self._loop_q:
+                        item = self._loop_q.popleft()
+                        if item is None:
+                            self._loop_done = True
+                        else:
+                            loop_chunk = item
+                except IndexError:
                     pass
 
             if self._mic_done and self._loop_done:
-                self._out_q.put(None)
+                self._out_q.append(None)
                 break
 
             mixed = self._mix_int16(mic_chunk, loop_chunk)
             if mixed is None:
                 continue
-            try:
-                self._out_q.put_nowait(mixed)
-            except queue.Full:
-                continue
+            # deque with maxlen automatically handles overflow
+            self._out_q.append(mixed)
 

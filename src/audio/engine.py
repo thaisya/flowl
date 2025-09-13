@@ -1,7 +1,6 @@
 """Audio engine: manages sounddevice and pushes frames to a queue via callback."""
 
 from typing import Callable, Tuple
-import queue
 import sounddevice as sd
 import numpy as np
 
@@ -25,8 +24,6 @@ class AudioEngine:
         try:
             # in_data is int16 ndarray; forward raw PCM s16le bytes
             self._on_audio(in_data.tobytes())
-        except queue.Full:
-            print("[AUDIO WARNING] Audio queue full, dropping frame")
         except Exception as e:
             print(f"[AUDIO ERROR] Callback error: {e}")
 

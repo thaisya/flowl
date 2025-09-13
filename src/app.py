@@ -1,20 +1,19 @@
 """FlowlApp orchestrates the audio engine, queues, workers, and models."""
 
-import queue
+from collections import deque
 
 from audio.engine import AudioEngine
 from audio.workers import ASRWorker, MTWorker, MixerWorker
 from models.bundle import ModelBundle
 from utils.device_manager import DeviceManager
-from utils import AUDIO_RATE
 
 
 class FlowlApp:
     def __init__(self):
-        self.audio_q: queue.Queue[bytes] = queue.Queue(maxsize=100)
-        self.mic_q: queue.Queue[bytes] = queue.Queue(maxsize=100)
-        self.loop_q: queue.Queue[bytes] = queue.Queue(maxsize=100)
-        self.events_q: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=200)
+        self.audio_q: deque[bytes] = deque(maxlen=100)
+        self.mic_q: deque[bytes] = deque(maxlen=100)
+        self.loop_q: deque[bytes] = deque(maxlen=100)
+        self.events_q: deque[tuple[str, str]] = deque(maxlen=200)
 
         self.models = ModelBundle()
         
@@ -42,27 +41,13 @@ class FlowlApp:
 
     def _on_audio_mic(self, in_data: bytes) -> None:
         """Callback for microphone audio data."""
-        try:
-            self.mic_q.put_nowait(in_data)
-        except queue.Full:
-            # Drop oldest data to make room for new data (FIFO behavior)
-            try:
-                self.mic_q.get_nowait()  # Remove oldest item
-                self.mic_q.put_nowait(in_data)  # Add new item
-            except queue.Empty:
-                pass  # Queue was already empty, just skip this frame
+        # deque with maxlen automatically handles overflow by removing oldest items
+        self.mic_q.append(in_data)
     
     def _on_audio_loopback(self, in_data: bytes) -> None:
         """Callback for loopback audio data."""
-        try:
-            self.loop_q.put_nowait(in_data)
-        except queue.Full:
-            # Drop oldest data to make room for new data (FIFO behavior)
-            try:
-                self.loop_q.get_nowait()  # Remove oldest item
-                self.loop_q.put_nowait(in_data)  # Add new item
-            except queue.Empty:
-                pass  # Queue was already empty, just skip this frame
+        # deque with maxlen automatically handles overflow by removing oldest items
+        self.loop_q.append(in_data)
     
     def start(self) -> None:
         # Start both audio engines if available
@@ -82,9 +67,9 @@ class FlowlApp:
             if self.audio_mic and self.audio_loopback:
                 self.mixer = MixerWorker(self.mic_q, self.loop_q, self.audio_q)
             elif self.audio_mic:
-                self.mixer = MixerWorker(self.mic_q, queue.Queue(), self.audio_q)
+                self.mixer = MixerWorker(self.mic_q, deque(maxlen=100), self.audio_q)
             else:
-                self.mixer = MixerWorker(queue.Queue(), self.loop_q, self.audio_q)
+                self.mixer = MixerWorker(deque(maxlen=100), self.loop_q, self.audio_q)
             self.mixer.start()
         
         # Start worker threads
@@ -112,26 +97,22 @@ class FlowlApp:
         
         # Signal threads to stop by sending sentinel values
         try:
-            self.mic_q.put_nowait(None)
-        except queue.Full:
-            pass  # Queue might be full, that's okay
+            self.mic_q.append(None)
         except Exception as e:
             print(f"Warning: Error sending mic sentinel: {e}")
             
         try:
-            self.loop_q.put_nowait(None)
-        except queue.Full:
-            pass  # Queue might be full, that's okay
+            self.loop_q.append(None)
         except Exception as e:
             print(f"Warning: Error sending loopback sentinel: {e}")
             
         try:
-            self.audio_q.put(None)  # in case mixer was not started
+            self.audio_q.append(None)  # in case mixer was not started
         except Exception as e:
             print(f"Warning: Error sending audio sentinel: {e}")
             
         try:
-            self.events_q.put(("final", "exit"))  # MTWorker exits on this sentinel
+            self.events_q.append(("final", "exit"))  # MTWorker exits on this sentinel
         except Exception as e:
             print(f"Warning: Error sending events sentinel: {e}")
         
