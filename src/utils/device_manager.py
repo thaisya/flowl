@@ -1,5 +1,6 @@
 import sounddevice as sd
-from .utils import AUDIO_RATE
+from .utils import AUDIO_RATE, MIC_MODE
+
 
 class DeviceManager:
     def __init__(self):
@@ -29,11 +30,36 @@ class DeviceManager:
         return ('stereo mix' in device_name or 'loopback' in device_name or 
                 'what u hear' in device_name)
 
+    def startup(self) -> int | None:
+        """Find and return a working audio input device based on MIC_MODE setting."""
+        active_device = None
+
+        if MIC_MODE:
+            for device in self._devices:
+                if not self._is_loopback_device(device) and self._is_device_working(device['index']):
+                    active_device = device
+                    print(f"✓ Found microphone device: {device['name']} (index: {device['index']})")
+                    break
+        else:
+            for device in self._devices:
+                if self._is_loopback_device(device) and self._is_device_working(device['index']):
+                    active_device = device
+                    print(f"✓ Found loopback device: {device['name']} (index: {device['index']})")
+                    break
+
+        device_result = active_device['index'] if active_device else None
+        if not device_result:
+            raise RuntimeError("No working audio input devices found. Please check your audio settings.")
+
+        return device_result
+
+
     def startup_dual(self) -> tuple[int | None, int | None]:
         """
         Startup method that finds both microphone and loopback devices.
         Returns (mic_index, loopback_index).
         Either can be None if not available.
+        NOTE! Do not use in current implementation.
         """
         mic_device = None
         loopback_device = None
@@ -63,7 +89,8 @@ class DeviceManager:
         if not mic_device and not loopback_device:
             raise RuntimeError("No working audio input devices found. Please check your audio settings.")
         
-        return mic_result, loopback_result
+        #return mic_result, loopback_result
+        return None
 
     def get_working_microphone(self) -> tuple[str, int] | None:
         """Get the working microphone device type and index."""

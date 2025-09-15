@@ -16,6 +16,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--min-part-chars", type=int, default=1, help="Min chars to translate at once (NOT recommended to change)")
     parser.add_argument("--from-code", choices=["en", "ru"], default="en", help="From language")
     parser.add_argument("--to-code", choices=["en", "ru"], default="ru", help="To language")
+    parser.add_argument("--use-mic", action="store_true", help="Use microphone as input device")
     return parser.parse_args()
 
 args = get_args()
@@ -30,6 +31,7 @@ FROM_CODE = args.from_code
 TO_CODE = args.to_code
 MODEL_PATH = r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-en" if args.from_code == "en" else r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-ru"
 MT_MODEL_PATH = "Helsinki-NLP/opus-mt-en-ru" if args.from_code == "en" else "Helsinki-NLP/opus-mt-ru-en"
+MIC_MODE = args.use_mic
 
 
 def filter_partial(text: str) -> str:
