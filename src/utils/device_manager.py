@@ -21,7 +21,8 @@ class DeviceManager:
             )
             test_stream.close()
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Device is not working: {e}")
             return False
 
     def _is_loopback_device(self, device: dict) -> bool:

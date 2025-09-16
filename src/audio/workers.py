@@ -11,6 +11,7 @@ from utils import (
     MIN_PARTIAL_CHARS,
     MIN_PARTIAL_WORDS,
     filter_partial,
+    exec_time_wrap,
 )
 
 
@@ -20,9 +21,28 @@ class ASRWorker(threading.Thread):
         self._audio_q = audio_q
         self._events_q = events_q
         self._rec = recognizer
+        self._prev_partial = ""
+
+    @exec_time_wrap
+    def generate_final_result(self, data: bytes) -> None:
+            res = json.loads(self._rec.Result())
+            final_text = res.get("text", "").strip()
+
+            if final_text:
+                self._events_q.append(("final", final_text))
+            self._prev_partial = ""
+
+    def generate_partial_result(self, data: bytes) -> None:
+        pres = json.loads(self._rec.PartialResult())
+        partial_text = pres.get("partial", "").strip()
+
+        if not partial_text or partial_text == self._prev_partial:
+            return
+
+        self._events_q.append(("partial", partial_text))
+        self._prev_partial = partial_text
 
     def run(self) -> None:
-        prev_partial = ""
         while True:
             try:
                 if not self._audio_q:
@@ -37,17 +57,9 @@ class ASRWorker(threading.Thread):
 
             try:
                 if self._rec.AcceptWaveform(data):
-                    res = json.loads(self._rec.Result())
-                    final_text = res.get("text", "").strip()
-                    if final_text:
-                        self._events_q.append(("final", final_text))
-                    prev_partial = ""
+                    self.generate_final_result(data)
                 else:
-                    pres = json.loads(self._rec.PartialResult())
-                    partial_text = pres.get("partial", "").strip()
-                    if partial_text and partial_text != prev_partial:
-                        self._events_q.append(("partial", partial_text))
-                        prev_partial = partial_text
+                    self.generate_partial_result(data)
             except Exception as e:
                 print(f"[ASR ERROR] --> {e}")
 

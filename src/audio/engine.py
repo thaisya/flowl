@@ -3,7 +3,6 @@
 from typing import Callable
 import sounddevice as sd
 import numpy as np
-import torch
 
 from utils import AUDIO_RATE, FRAMES_PER_BUFFER
 
@@ -13,8 +12,8 @@ class AudioEngine:
         self._stream = None
         self._input_device_index = device_index
         self._noise_reducer = noise_reducer
-        self._audio_buffer = []
-        self._min_buffer_size = 2049  # TorchGate requires > 2048 samples
+        self._audio_buffer = None
+        self._min_buffer_size = None
 
     def _callback(self, in_data: np.ndarray, frame_count: int, time_info, status) -> None:
         if status:

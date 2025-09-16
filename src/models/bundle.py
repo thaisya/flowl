@@ -2,10 +2,11 @@
 
 import torch
 # from noisereduce.torchgate import TorchGate as TG
+from typing import Callable
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
 
-from utils.utils import AUDIO_RATE, MODEL_PATH, MT_MODEL_PATH
+from utils.utils import AUDIO_RATE, MODEL_PATH, MT_MODEL_PATH, exec_time_wrap
 
 
 class ModelBundle:
@@ -43,12 +44,9 @@ class ModelBundle:
         except Exception as e:
             raise RuntimeError(f"Failed to load MT model {MT_MODEL_PATH}: {e}")
 
-        try:
-            self._tg = None
-        except Exception as e:
-            raise RuntimeError(f"Failed to load noise reduction model: {e}")
-            self._tg = None
+        self._tg = None
 
+    @exec_time_wrap
     def translate(self, text: str) -> str:
         # Check cache first
         if text in self._translation_cache:
@@ -81,11 +79,11 @@ class ModelBundle:
             print(f"[TRANSLATION ERROR] Failed to translate '{text}': {e}")
             return text  # Return original text if translation fails
 
-    def get_noise_reducer(self):
+    def get_noise_reducer(self) -> Callable:
         """Get the noise reduction model for use in audio processing."""
         return self._tg
 
-    def get_device(self):
+    def get_device(self) -> str:
         """Get the device (cpu/cuda) for tensor operations."""
         return self._device
 

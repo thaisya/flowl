@@ -26,14 +26,14 @@ class FlowlApp:
         )
         if device_index is not None:
             print(f"✓ Created audio engine (device: {device_index}) "
-                  f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noice cancelling"}")
+                  f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
 
         self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer)
         self.mt = MTWorker(self.events_q, self.models.translate)
 
     def _on_audio(self, in_data: bytes) -> None:
         """Callback for audio data."""
-        # deque with maxlen automatically handles overflow by removing oldest items
+        # deque with maxlen automatically handles overflow by removing the oldest items
         self.audio_q.append(in_data)
     
     def start(self) -> None:

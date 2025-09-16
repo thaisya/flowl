@@ -12,6 +12,7 @@ from .utils import (
     MODEL_PATH,
     MT_MODEL_PATH,
     filter_partial,
+    exec_time_wrap
 )
 
 from .device_manager import DeviceManager
@@ -29,4 +30,5 @@ __all__ = [
     "MT_MODEL_PATH",
     "filter_partial",
     "DeviceManager",
+    "exec_time_wrap"
 ]
