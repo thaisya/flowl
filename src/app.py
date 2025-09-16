@@ -19,9 +19,14 @@ class FlowlApp:
         self.device_manager = DeviceManager()
         device_index = self.device_manager.startup()
 
-        self.audio_engine = AudioEngine(on_audio=self._on_audio, device_index=device_index)
+        self.audio_engine = AudioEngine(
+            on_audio=self._on_audio, 
+            device_index=device_index,
+            noise_reducer=self.models.get_noise_reducer(),
+            device=self.models.get_device()
+        )
         if device_index is not None:
-            print(f"✓ Created audio engine (device: {device_index})")
+            print(f"✓ Created audio engine (device: {device_index}) with noise reduction")
 
         self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer)
         self.mt = MTWorker(self.events_q, self.models.translate)

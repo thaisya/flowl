@@ -1,6 +1,7 @@
 """Models bundle: ASR (Vosk) and MT (Transformers)."""
 
 import torch
+from noisereduce.torchgate import TorchGate as TG
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
 
@@ -12,6 +13,14 @@ class ModelBundle:
         # Simple cache to avoid re-translating identical text
         self._translation_cache = {}
         self._max_cache_size = 100
+        # Try to load on GPU for much faster inference
+        try:
+            self._device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"Using device: {self._device}")
+        except Exception as e:
+            print(f"Failed to load torch: {e}")
+            self._device = "cpu"
+
         try:
             print(f"Loading ASR model from: {MODEL_PATH}")
             self._asr_model = Model(MODEL_PATH)
@@ -23,23 +32,22 @@ class ModelBundle:
         try:
             print(f"Loading MT model: {MT_MODEL_PATH}")
             self._tokenizer = AutoTokenizer.from_pretrained(MT_MODEL_PATH)
-            
-            # Try to load on GPU for much faster inference
-            import torch
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"Using device: {device}")
-            
             self._mt_model = AutoModelForSeq2SeqLM.from_pretrained(
                 MT_MODEL_PATH,
-                torch_dtype=torch.float16 if device == "cuda" else torch.float32
-            ).to(device)
+                dtype=torch.float16 if self._device == "cuda" else torch.float32
+            ).to(self._device)
             
             # Enable evaluation mode for faster inference
             self._mt_model.eval()
-            self._device = device
-            print(f"✓ MT model loaded successfully on {device}")
+            print(f"✓ MT model loaded successfully on {self._device}")
         except Exception as e:
             raise RuntimeError(f"Failed to load MT model {MT_MODEL_PATH}: {e}")
+
+        try:
+            self._tg = TG(sr=AUDIO_RATE, nonstationary=True).to(self._device)
+            print(f"✓ Noise reduction model loaded successfully on {self._device}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to load noise reduction model: {e}")
 
     def translate(self, text: str) -> str:
         # Check cache first
@@ -64,7 +72,7 @@ class ModelBundle:
             
             # Cache the result
             if len(self._translation_cache) >= self._max_cache_size:
-                # Remove oldest entry (simple FIFO)
+                # Remove the oldest entry (simple FIFO)
                 oldest_key = next(iter(self._translation_cache))
                 del self._translation_cache[oldest_key]
             self._translation_cache[text] = result
@@ -73,5 +81,13 @@ class ModelBundle:
         except Exception as e:
             print(f"[TRANSLATION ERROR] Failed to translate '{text}': {e}")
             return text  # Return original text if translation fails
+
+    def get_noise_reducer(self):
+        """Get the noise reduction model for use in audio processing."""
+        return self._tg
+
+    def get_device(self):
+        """Get the device (cpu/cuda) for tensor operations."""
+        return self._device
 
 
