@@ -1,7 +1,7 @@
 """Models bundle: ASR (Vosk) and MT (Transformers)."""
 
 import torch
-from noisereduce.torchgate import TorchGate as TG
+# from noisereduce.torchgate import TorchGate as TG
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
 
@@ -44,10 +44,10 @@ class ModelBundle:
             raise RuntimeError(f"Failed to load MT model {MT_MODEL_PATH}: {e}")
 
         try:
-            self._tg = TG(sr=AUDIO_RATE, nonstationary=True).to(self._device)
-            print(f"✓ Noise reduction model loaded successfully on {self._device}")
+            self._tg = None
         except Exception as e:
             raise RuntimeError(f"Failed to load noise reduction model: {e}")
+            self._tg = None
 
     def translate(self, text: str) -> str:
         # Check cache first
@@ -65,7 +65,6 @@ class ModelBundle:
                     max_length=512,  # Limit output length
                     num_beams=1,     # Use greedy decoding (faster than beam search)
                     do_sample=False, # Disable sampling for faster generation
-                    early_stopping=True
                 )
             
             result = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
