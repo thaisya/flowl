@@ -1,7 +1,7 @@
 """FlowlApp orchestrates the audio engine, queues, workers, and models."""
 
+import threading
 from collections import deque
-
 from audio.engine import AudioEngine
 from audio.workers import ASRWorker, MTWorker
 from models.bundle import ModelBundle
@@ -10,8 +10,12 @@ from utils.device_manager import DeviceManager
 
 class FlowlApp:
     def __init__(self):
-        self.audio_q: deque[bytes] = deque(maxlen=100)
-        self.events_q: deque[tuple[str, str]] = deque(maxlen=200)
+        self.audio_q: deque[bytes] = deque(maxlen=50)
+        self.events_q: deque[tuple[str, str]] = deque(maxlen=100)
+        
+        # Create locks for thread-safe queue operations
+        self._audio_lock = threading.Lock()
+        self._events_lock = threading.Lock()
 
         self.models = ModelBundle()
         
@@ -28,13 +32,14 @@ class FlowlApp:
             print(f"✓ Created audio engine (device: {device_index}) "
                   f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
 
-        self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer)
-        self.mt = MTWorker(self.events_q, self.models.translate)
+        self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_lock, self._events_lock)
+        self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock)
 
     def _on_audio(self, in_data: bytes) -> None:
         """Callback for audio data."""
         # deque with maxlen automatically handles overflow by removing the oldest items
-        self.audio_q.append(in_data)
+        with self._audio_lock:
+            self.audio_q.append(in_data)
     
     def start(self) -> None:
         # Start audio engine if available
@@ -62,12 +67,14 @@ class FlowlApp:
         
         # Signal threads to stop by sending sentinel values
         try:
-            self.audio_q.append(None)
+            with self._audio_lock:
+                self.audio_q.append(None)
         except Exception as e:
             print(f"Warning: Error sending audio sentinel: {e}")
             
         try:
-            self.events_q.append(("final", "exit"))  # MTWorker exits on this sentinel
+            with self._events_lock:
+                self.events_q.append(("final", None))  # MTWorker exits on this sentinel
         except Exception as e:
             print(f"Warning: Error sending events sentinel: {e}")
         
@@ -86,3 +93,4 @@ class FlowlApp:
                 print(f"✓ {thread_name} thread stopped")
         
         print("FlowlApp stopped")
+    

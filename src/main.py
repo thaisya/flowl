@@ -9,7 +9,7 @@ def main():
     try:
         app.start()
         while app.is_running():
-            time.sleep(0.1)
+            time.sleep(1)
     except KeyboardInterrupt:
         print("Manual exit")
     finally:

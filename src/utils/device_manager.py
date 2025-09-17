@@ -19,11 +19,12 @@ class DeviceManager:
                 samplerate=AUDIO_RATE,
                 dtype='int16',
             )
-            test_stream.close()
             return True
         except Exception as e:
             print(f"Device is not working: {e}")
             return False
+        finally:
+            test_stream.close()
 
     def _is_loopback_device(self, device: dict) -> bool:
         """Check if a device is a loopback device based on its name."""

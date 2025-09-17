@@ -3,7 +3,6 @@
 import threading
 import time
 import json
-import numpy as np
 from collections import deque
 
 from utils import (
@@ -16,12 +15,14 @@ from utils import (
 
 
 class ASRWorker(threading.Thread):
-    def __init__(self, audio_q: deque, events_q: deque, recognizer):
+    def __init__(self, audio_q: deque, events_q: deque, recognizer, audio_lock: threading.Lock, events_lock: threading.Lock):
         super().__init__(daemon=True)
         self._audio_q = audio_q
         self._events_q = events_q
         self._rec = recognizer
         self._prev_partial = ""
+        self._audio_lock = audio_lock
+        self._events_lock = events_lock
 
     @exec_time_wrap
     def generate_final_result(self, data: bytes) -> None:
@@ -29,30 +30,39 @@ class ASRWorker(threading.Thread):
             final_text = res.get("text", "").strip()
 
             if final_text:
-                self._events_q.append(("final", final_text))
+                with self._events_lock:
+                    self._events_q.append(("final", final_text))
             self._prev_partial = ""
 
     def generate_partial_result(self, data: bytes) -> None:
+        now = time.time() * 1000
+        if hasattr(self, '_last_partial_time') and now - self._last_partial_time < THROTTLE_MS:
+            return
+
         pres = json.loads(self._rec.PartialResult())
         partial_text = pres.get("partial", "").strip()
 
-        if not partial_text or partial_text == self._prev_partial:
+        if not partial_text or partial_text == self._prev_partial or (len(partial_text) < MIN_PARTIAL_CHARS and len(partial_text.split()) < MIN_PARTIAL_WORDS):
             return
 
-        self._events_q.append(("partial", partial_text))
+        with self._events_lock:
+            self._events_q.append(("partial", partial_text))
         self._prev_partial = partial_text
+
+        self._last_partial_time = now
 
     def run(self) -> None:
         while True:
             try:
-                if not self._audio_q:
-                    time.sleep(0.1)
-                    continue
-                data = self._audio_q.popleft()
-                if data is None:
-                    break
+                with self._audio_lock:
+                    if not self._audio_q:
+                        time.sleep(0.001)
+                        continue
+                    data = self._audio_q.popleft()
+                    if data is None:
+                        break
             except IndexError:
-                time.sleep(0.1)
+                time.sleep(0.001)
                 continue
 
             try:
@@ -65,10 +75,12 @@ class ASRWorker(threading.Thread):
 
 
 class MTWorker(threading.Thread):
-    def __init__(self, events_q: deque, translate_fn):
+    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Lock):
         super().__init__(daemon=True)
         self._events_q = events_q
         self._translate = translate_fn
+        self._events_lock = events_lock
+
 
     def run(self) -> None:
         last_emit_time = 0.0
@@ -76,15 +88,16 @@ class MTWorker(threading.Thread):
 
         while True:
             try:
-                if not self._events_q:
-                    time.sleep(0.1)
-                    continue
-                ev_type, text = self._events_q.popleft()
+                with self._events_lock:
+                    if not self._events_q:
+                        time.sleep(0.001)
+                        continue
+                    text_type, text = self._events_q.popleft()
             except IndexError:
-                time.sleep(0.1)
+                time.sleep(0.001)
                 continue
 
-            if ev_type == "final":
+            if text_type == "final":
                 if text == "exit":
                     print("[FINAL EXIT]")
                     break
@@ -99,6 +112,7 @@ class MTWorker(threading.Thread):
 
             if len(text) < MIN_PARTIAL_CHARS and len(text.split()) < MIN_PARTIAL_WORDS:
                 continue
+            
             text = filter_partial(text)
             now_time_ms = time.time() * 1000.0
             if text == last_shown_partial:

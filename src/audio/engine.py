@@ -3,7 +3,6 @@
 from typing import Callable
 import sounddevice as sd
 import numpy as np
-
 from utils import AUDIO_RATE, FRAMES_PER_BUFFER
 
 class AudioEngine:
@@ -18,24 +17,18 @@ class AudioEngine:
     def _callback(self, in_data: np.ndarray, frame_count: int, time_info, status) -> None:
         if status:
             print(f"Audio callback Status: {status}")
+            return
 
-        # Validate input data
         if in_data is None or len(in_data) == 0:
-            return  # Skip processing empty audio data
+            return
 
-        try:
-            # Apply noise reduction (SCRAPPED)
-            if self._noise_reducer is not None:
-                pass
+        self._on_audio(in_data.tobytes())
 
-            self._on_audio(in_data.tobytes())
-        except Exception as e:
-            print(f"[AUDIO ERROR] Callback error: {e}")
 
     def start(self) -> None:
         if self._input_device_index is None:
             print("[AUDIO WARNING] No device index provided, cannot start audio engine")
-            return None
+            return
             
         try:
             if self._stream is None:
