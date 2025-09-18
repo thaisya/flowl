@@ -12,6 +12,7 @@ class DeviceManager:
 
     def _is_device_working(self, device_index: int) -> bool:
         """Test if a specific device can be opened."""
+        test_stream = None
         try:
             test_stream = sd.InputStream(
                 device=device_index,
@@ -24,7 +25,8 @@ class DeviceManager:
             print(f"Device is not working: {e}")
             return False
         finally:
-            test_stream.close()
+            if test_stream:
+                test_stream.close()
 
     def _is_loopback_device(self, device: dict) -> bool:
         """Check if a device is a loopback device based on its name."""

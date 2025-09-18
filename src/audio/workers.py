@@ -21,6 +21,7 @@ class ASRWorker(threading.Thread):
         self._events_q = events_q
         self._rec = recognizer
         self._prev_partial = ""
+        self._last_partial_time = 0.0
         self._audio_lock = audio_lock
         self._events_lock = events_lock
 
@@ -36,8 +37,10 @@ class ASRWorker(threading.Thread):
 
     def generate_partial_result(self, data: bytes) -> None:
         now = time.time() * 1000
-        if hasattr(self, '_last_partial_time') and now - self._last_partial_time < THROTTLE_MS:
+        if now - self._last_partial_time < THROTTLE_MS:
             return
+
+        self._last_partial_time = now
 
         pres = json.loads(self._rec.PartialResult())
         partial_text = pres.get("partial", "").strip()
@@ -49,7 +52,6 @@ class ASRWorker(threading.Thread):
             self._events_q.append(("partial", partial_text))
         self._prev_partial = partial_text
 
-        self._last_partial_time = now
 
     def run(self) -> None:
         while True:
@@ -60,6 +62,7 @@ class ASRWorker(threading.Thread):
                         continue
                     data = self._audio_q.popleft()
                     if data is None:
+                        print("[ASR EXIT]")
                         break
             except IndexError:
                 time.sleep(0.001)
@@ -80,12 +83,41 @@ class MTWorker(threading.Thread):
         self._events_q = events_q
         self._translate = translate_fn
         self._events_lock = events_lock
+        self._last_emit_time = 0.0
+        self._last_shown_partial = ""
 
+
+    def output_final_result(self, text) -> None:
+        try:
+            print(f"[FINAL] {text} --> {self._translate(text)}")
+        except Exception as e:
+            print(f"[FINAL ERROR] {text} --> {e}")
+        self._last_emit_time = 0
+        self._last_shown_partial = ""
+
+
+    def output_partial_result(self, text: str) -> None:
+        now = time.time() * 1000.0
+        if now - self._last_emit_time < THROTTLE_MS:
+            return
+
+        if text == self._last_shown_partial:
+            return
+
+        if len(text) < MIN_PARTIAL_CHARS and len(text.split()) < MIN_PARTIAL_WORDS:
+            return
+
+        text = filter_partial(text)
+        try:
+            translated_partial = self._translate(text)
+            print(f"[PARTIAL] {text} --> {translated_partial}")
+            self._last_emit_time = now
+            self._last_shown_partial = text
+        except Exception as e:
+            print(f"[PARTIAL ERROR] --> {e}")
+        
 
     def run(self) -> None:
-        last_emit_time = 0.0
-        last_shown_partial = ""
-
         while True:
             try:
                 with self._events_lock:
@@ -98,32 +130,13 @@ class MTWorker(threading.Thread):
                 continue
 
             if text_type == "final":
-                if text == "exit":
+                if text is None:
                     print("[FINAL EXIT]")
                     break
-                try:
-                    translated_final = self._translate(text)
-                    print(f"[FINAL] {text} --> {translated_final}")
-                except Exception as e:
-                    print(f"[FINAL ERROR] {text} --> {e}")
-                last_emit_time = 0
-                last_shown_partial = ""
-                continue
+                self.output_final_result(text)
 
-            if len(text) < MIN_PARTIAL_CHARS and len(text.split()) < MIN_PARTIAL_WORDS:
-                continue
+            elif text_type == "partial":
+                self.output_partial_result(text)
+
+
             
-            text = filter_partial(text)
-            now_time_ms = time.time() * 1000.0
-            if text == last_shown_partial:
-                continue
-            if now_time_ms - last_emit_time < THROTTLE_MS:
-                continue
-
-            try:
-                translated_partial = self._translate(text)
-                print(f"[PARTIAL] {text} --> {translated_partial}")
-                last_emit_time = now_time_ms
-                last_shown_partial = text
-            except Exception as e:
-                print(f"[PARTIAL ERROR] --> {e}")

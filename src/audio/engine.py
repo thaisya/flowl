@@ -11,8 +11,6 @@ class AudioEngine:
         self._stream = None
         self._input_device_index = device_index
         self._noise_reducer = noise_reducer
-        self._audio_buffer = None
-        self._min_buffer_size = None
 
     def _callback(self, in_data: np.ndarray, frame_count: int, time_info, status) -> None:
         if status:

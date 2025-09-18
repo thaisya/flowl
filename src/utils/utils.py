@@ -2,6 +2,7 @@
 
 import argparse
 import time
+from typing import Final
 
 
 # TODO min, max validation (not necessary for now)
@@ -23,17 +24,24 @@ def get_args() -> argparse.Namespace:
 
 arguments = get_args()
 
-AUDIO_RATE = arguments.rate
-FRAMES_PER_BUFFER = arguments.frames_per_buffer
-THROTTLE_MS = arguments.throttle_ms
-MAX_PARTIAL_WORDS = arguments.max_part_words
-MIN_PARTIAL_CHARS = arguments.min_part_chars
-MIN_PARTIAL_WORDS = arguments.min_part_words
-FROM_CODE = arguments.from_code
-TO_CODE = arguments.to_code
-MODEL_PATH = r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-en" if arguments.from_code == "en" else r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-ru"
-MT_MODEL_PATH = "Helsinki-NLP/opus-mt-en-ru" if arguments.from_code == "en" else "Helsinki-NLP/opus-mt-ru-en"
-MIC_MODE = arguments.use_mic
+# Audio configuration constants
+AUDIO_RATE: Final[int] = arguments.rate
+FRAMES_PER_BUFFER: Final[int] = arguments.frames_per_buffer
+THROTTLE_MS: Final[int] = arguments.throttle_ms
+MAX_PARTIAL_WORDS: Final[int] = arguments.max_part_words
+MIN_PARTIAL_CHARS: Final[int] = arguments.min_part_chars
+MIN_PARTIAL_WORDS: Final[int] = arguments.min_part_words
+
+# Language configuration constants
+FROM_CODE: Final[str] = arguments.from_code
+TO_CODE: Final[str] = arguments.to_code
+
+# Model paths
+MODEL_PATH: Final[str] = r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-en" if arguments.from_code == "en" else r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-ru"
+MT_MODEL_PATH: Final[str] = "Helsinki-NLP/opus-mt-en-ru" if arguments.from_code == "en" else "Helsinki-NLP/opus-mt-ru-en"
+
+# Mode flags
+MIC_MODE: Final[bool] = arguments.use_mic
 
 
 def filter_partial(text: str) -> str:
@@ -51,4 +59,4 @@ def exec_time_wrap(func):
         print(f'Function {func.__name__} took {end - start:.6f} seconds')
         return result
     return wrapper
-
+ 
