@@ -86,12 +86,18 @@ class MTWorker(threading.Thread):
         self._last_emit_time = 0.0
         self._last_shown_partial = ""
 
-
     def output_final_result(self, text) -> None:
+        final_text_sliced = ""
         try:
-            print(f"[FINAL] {text} --> {self._translate(text)}")
-        except Exception as e:
-            print(f"[FINAL ERROR] {text} --> {e}")
+            final_text_sliced = text[-len(self._last_shown_partial):]
+            print(len(self._last_shown_partial.split()))
+        except (IndexError, ValueError):
+            pass
+        if final_text_sliced != self._last_shown_partial and len(final_text_sliced) >= MIN_PARTIAL_CHARS:
+            try:
+                print(f"[FINAL] {final_text_sliced} --> {self._translate(final_text_sliced)}")
+            except Exception as e:
+                print(f"[FINAL ERROR] {final_text_sliced} --> {e}")
         self._last_emit_time = 0
         self._last_shown_partial = ""
 

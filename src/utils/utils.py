@@ -12,9 +12,9 @@ def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Flowl - a real-time lightweight offline translator",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--rate", type=int, default=16000, help = "Audio rate Hz")
-    parser.add_argument("--frames-per-buffer", type=int, default=4096, help="How many frames processed at once")
+    parser.add_argument("--frames-per-buffer", type=int, default=2048, help="How many frames processed at once")
     parser.add_argument("--throttle-ms", type=int, default=50, help="Interval for PARTIAL-output")
-    parser.add_argument("--max-part-words", type=int, default=10, help="Max words to buildup in partial")
+    parser.add_argument("--max-part-words", type=int, default=15, help="Max words to buildup in partial")
     parser.add_argument("--min-part-words", type=int, default=1, help="Min words to translate at once (NOT recommended to change)")
     parser.add_argument("--min-part-chars", type=int, default=1, help="Min chars to translate at once (NOT recommended to change)")
     parser.add_argument("--from-code", choices=["en", "ru"], default="en", help="From language")
