@@ -86,14 +86,27 @@ class MTWorker(threading.Thread):
         self._last_emit_time = 0.0
         self._last_shown_partial = ""
 
+    @exec_time_wrap
     def output_final_result(self, text) -> None:
         final_text_sliced = ""
+        partial_text_sliced = ""
         try:
-            final_text_sliced = text[-len(self._last_shown_partial):]
-            print(len(self._last_shown_partial.split()))
+            partial_half_word_count = len(self._last_shown_partial.split()) // 2
+            
+            text_words = text.split()
+            if 0 < partial_half_word_count <= len(text_words):
+                final_text_sliced = " ".join(text_words[-partial_half_word_count:])
+            else:
+                final_text_sliced = text
+            partial_words = self._last_shown_partial.split()
+            if 0 < partial_half_word_count <= len(partial_words):
+                partial_text_sliced = " ".join(partial_words[-partial_half_word_count:])
+            else:
+                partial_text_sliced = self._last_shown_partial
+
         except (IndexError, ValueError):
             pass
-        if final_text_sliced != self._last_shown_partial and len(final_text_sliced) >= MIN_PARTIAL_CHARS:
+        if final_text_sliced != partial_text_sliced and len(final_text_sliced) >= MIN_PARTIAL_CHARS:
             try:
                 print(f"[FINAL] {final_text_sliced} --> {self._translate(final_text_sliced)}")
             except Exception as e:
