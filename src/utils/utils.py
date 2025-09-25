@@ -56,7 +56,7 @@ def exec_time_wrap(func):
         start = time.perf_counter()
         result = func(*args, **kwargs)
         end = time.perf_counter()
-        print(f'Function {func.__name__} took {end - start:.6f} seconds')
+        print(f'Function {func.__name__} took {end - start:.6f} seconds\n')
         return result
     return wrapper
  
