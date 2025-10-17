@@ -25,7 +25,6 @@ class ASRWorker(threading.Thread):
         self._audio_lock = audio_lock
         self._events_lock = events_lock
 
-    @exec_time_wrap
     def generate_final_result(self, data: bytes) -> None:
             res = json.loads(self._rec.Result())
             final_text = res.get("text", "").strip()
@@ -86,7 +85,6 @@ class MTWorker(threading.Thread):
         self._last_emit_time = 0.0
         self._last_shown_partial = ""
 
-    @exec_time_wrap
     def output_final_result(self, text) -> None:
         if not text:
             return
@@ -106,8 +104,7 @@ class MTWorker(threading.Thread):
                 partial_text_sliced = self._last_shown_partial
         except (IndexError, ValueError):
             pass
-        print(f"final_text_sliced: {final_text_sliced}\npartial_text_sliced: {partial_text_sliced}\n")
-        print(f"final_text_sliced != partial_text_sliced: {final_text_sliced != partial_text_sliced}\nlen(final_text_sliced) >= MIN_PARTIAL_CHARS: {len(final_text_sliced) >= MIN_PARTIAL_CHARS}")
+
         if final_text_sliced != partial_text_sliced and len(final_text_sliced) >= MIN_PARTIAL_CHARS:
             try:
                 print(f"[FINAL] {final_text_sliced} --> {self._translate(final_text_sliced)}")
