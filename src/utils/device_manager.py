@@ -31,8 +31,14 @@ class DeviceManager:
     def _is_loopback_device(self, device: dict) -> bool:
         """Check if a device is a loopback device based on its name."""
         device_name = device['name'].lower()
-        return ('stereo mix' in device_name or 'loopback' in device_name or 
+        return ('stereo mix' in device_name or 'loopback' in device_name or
                 'what u hear' in device_name)
+
+    def _is_microphone(self, device: dict) -> bool:
+        """Check if a device is a microphone based on its name."""
+        device_name = device['name'].lower()
+        return ('microphone' in device_name or
+                'mic'in device_name)
 
     def startup(self) -> int | None:
         """Find and return a working audio input device based on MIC_MODE setting."""
@@ -40,7 +46,7 @@ class DeviceManager:
 
         if MIC_MODE:
             for device in self._devices:
-                if not self._is_loopback_device(device) and self._is_device_working(device['index']):
+                if self._is_microphone(device) and self._is_device_working(device['index']):
                     active_device = device
                     print(f"✓ Found microphone device: {device['name']} (index: {device['index']})")
                     break

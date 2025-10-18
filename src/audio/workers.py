@@ -77,13 +77,14 @@ class ASRWorker(threading.Thread):
 
 
 class MTWorker(threading.Thread):
-    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Lock):
+    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Lock, ui_callback=None):
         super().__init__(daemon=True)
         self._events_q = events_q
         self._translate = translate_fn
         self._events_lock = events_lock
         self._last_emit_time = 0.0
         self._last_shown_partial = ""
+        self._ui_callback = ui_callback  # Callback for UI updates
 
     def output_final_result(self, text) -> None:
         if not text:
@@ -107,9 +108,26 @@ class MTWorker(threading.Thread):
 
         if final_text_sliced != partial_text_sliced and len(final_text_sliced) >= MIN_PARTIAL_CHARS:
             try:
-                print(f"[FINAL] {final_text_sliced} --> {self._translate(final_text_sliced)}")
+                translated_text = self._translate(final_text_sliced)
+                # Send structured event to UI instead of printing
+                if self._ui_callback:
+                    self._ui_callback("final", {
+                        "original": final_text_sliced,
+                        "translated": translated_text,
+                        "timestamp": time.time()
+                    })
+                else:
+                    print(f"[FINAL] {final_text_sliced} --> {translated_text}")
             except Exception as e:
-                print(f"[FINAL ERROR] {final_text_sliced} --> {e}")
+                if self._ui_callback:
+                    self._ui_callback("error", {
+                        "type": "translation_error",
+                        "message": str(e),
+                        "original": final_text_sliced,
+                        "timestamp": time.time()
+                    })
+                else:
+                    print(f"[FINAL ERROR] {final_text_sliced} --> {e}")
 
         self._last_emit_time = 0
         self._last_shown_partial = ""
@@ -129,11 +147,27 @@ class MTWorker(threading.Thread):
         text = filter_partial(text)
         try:
             translated_partial = self._translate(text)
-            print(f"[PARTIAL] {text} --> {translated_partial}")
+            # Send structured event to UI instead of printing
+            if self._ui_callback:
+                self._ui_callback("partial", {
+                    "original": text,
+                    "translated": translated_partial,
+                    "timestamp": now
+                })
+            else:
+                print(f"[PARTIAL] {text} --> {translated_partial}")
             self._last_emit_time = now
             self._last_shown_partial = text
         except Exception as e:
-            print(f"[PARTIAL ERROR] --> {e}")
+            if self._ui_callback:
+                self._ui_callback("error", {
+                    "type": "partial_translation_error",
+                    "message": str(e),
+                    "original": text,
+                    "timestamp": now
+                })
+            else:
+                print(f"[PARTIAL ERROR] --> {e}")
         
 
     def run(self) -> None:

@@ -9,13 +9,14 @@ from utils.device_manager import DeviceManager
 
 
 class FlowlApp:
-    def __init__(self):
+    def __init__(self, ui_callback=None):
         self.audio_q: deque[bytes] = deque(maxlen=50)
         self.events_q: deque[tuple[str, str]] = deque(maxlen=100)
         
         # Create locks for thread-safe queue operations
         self._audio_lock = threading.Lock()
         self._events_lock = threading.Lock()
+        self._ui_callback = ui_callback  # Store UI callback
 
         self.models = ModelBundle()
         
@@ -33,7 +34,7 @@ class FlowlApp:
                   f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
 
         self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_lock, self._events_lock)
-        self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock)
+        self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock, self._ui_callback)
 
     def _on_audio(self, in_data: bytes) -> None:
         """Callback for audio data."""
