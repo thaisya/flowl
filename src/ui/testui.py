@@ -55,7 +55,7 @@ class SlidingTextWindow(QMainWindow):
         
         if event_type == "final" or event_type == "partial":
             # Just replace the entire text - true sliding effect
-            self.text_display.setText(f"→ {translated}")
+            self.text_display.setText(f"{original} → {translated}")
             
         # Auto-scroll to bottom
         self.text_display.moveCursor(QTextCursor.End)

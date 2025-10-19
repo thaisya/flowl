@@ -7,7 +7,7 @@ from collections import OrderedDict
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
 
-from utils.utils import AUDIO_RATE, MODEL_PATH, MT_MODEL_PATH, exec_time_wrap
+from utils import AUDIO_RATE, MODEL_PATH, MT_MODEL_PATH, exec_time_wrap
 
 
 class ModelBundle:

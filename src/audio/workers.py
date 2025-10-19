@@ -109,7 +109,6 @@ class MTWorker(threading.Thread):
         if final_text_sliced != partial_text_sliced and len(final_text_sliced) >= MIN_PARTIAL_CHARS:
             try:
                 translated_text = self._translate(final_text_sliced)
-                # Send structured event to UI instead of printing
                 if self._ui_callback:
                     self._ui_callback("final", {
                         "original": final_text_sliced,

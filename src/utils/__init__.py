@@ -11,11 +11,14 @@ from .utils import (
     TO_CODE,
     MODEL_PATH,
     MT_MODEL_PATH,
+    MIC_MODE,
+    CONSOLE_MODE,
     filter_partial,
     exec_time_wrap
 )
 
 from .device_manager import DeviceManager
+from .settings import SettingsManager, get_settings, set_settings
 
 __all__ = [
     "AUDIO_RATE",
@@ -28,7 +31,12 @@ __all__ = [
     "TO_CODE",
     "MODEL_PATH",
     "MT_MODEL_PATH",
+    "MIC_MODE",
+    "CONSOLE_MODE",
     "filter_partial",
     "DeviceManager",
-    "exec_time_wrap"
+    "exec_time_wrap",
+    "Settings",
+    "get_settings",
+    "set_settings"
 ]
