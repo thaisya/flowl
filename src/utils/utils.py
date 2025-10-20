@@ -1,37 +1,17 @@
 """Small text utilities for Flowl."""
 
 import time
-from typing import Final
-from .settings import get_settings
+from .settings import get_max_partial_words
 
-# Get settings instance
-settings = get_settings()
-
-# Audio configuration constants (for backward compatibility)
-AUDIO_RATE: Final[int] = settings.rate
-FRAMES_PER_BUFFER: Final[int] = settings.frames_per_buffer
-THROTTLE_MS: Final[int] = settings.throttle_ms
-MAX_PARTIAL_WORDS: Final[int] = settings.max_part_words
-MIN_PARTIAL_CHARS: Final[int] = settings.min_part_chars
-MIN_PARTIAL_WORDS: Final[int] = settings.min_part_words
-
-# Language configuration constants (for backward compatibility)
-FROM_CODE: Final[str] = settings.from_code
-TO_CODE: Final[str] = settings.to_code
-
-# Model paths (for backward compatibility)
-MODEL_PATH: Final[str] = settings.model_path
-MT_MODEL_PATH: Final[str] = settings.mt_model_path
-
-# Mode flags (for backward compatibility)
-MIC_MODE: Final[bool] = settings.use_mic
-CONSOLE_MODE: Final[bool] = settings.console_mode
+# All configuration constants have been moved to settings.py
+# Use the getter functions from settings.py instead
 
 def filter_partial(text: str) -> str:
     """Trim a partial string to the last MAX_PARTIAL_WORDS words."""
     words = text.split()
-    if len(words) > MAX_PARTIAL_WORDS:
-        text = " ".join(words[-MAX_PARTIAL_WORDS:])
+    max_words = get_max_partial_words()
+    if len(words) > max_words:
+        text = " ".join(words[-max_words:])
     return text
 
 def exec_time_wrap(func):

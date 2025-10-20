@@ -1,5 +1,5 @@
 import sounddevice as sd
-from .utils import AUDIO_RATE, MIC_MODE
+from .settings import get_audio_rate, get_mic_mode
 
 
 class DeviceManager:
@@ -17,12 +17,11 @@ class DeviceManager:
             test_stream = sd.InputStream(
                 device=device_index,
                 channels=1,
-                samplerate=AUDIO_RATE,
+                samplerate=get_audio_rate(),
                 dtype='int16',
             )
             return True
         except Exception as e:
-            # Get device name for better error reporting
             device_name = "Unknown"
             for device in self._devices:
                 if device['index'] == device_index:
@@ -37,50 +36,40 @@ class DeviceManager:
     def _is_loopback_device(self, device: dict) -> bool:
         """Check if a device is a loopback device based on its name."""
         device_name = device['name'].lower()
-        # Specific loopback device indicators
         loopback_indicators = [
             'stereo mix',
             'what u hear',
             'system sounds',
-            'primary sound capture'
+            'primary sound capture',
+            'loopback',
         ]
-        
-        # Check if any indicator is in the device name
-        for indicator in loopback_indicators:
-            if indicator in device_name:
-                return True
-        
-        # Also check individual words for more flexible matching
+        # Match phrases or tokens
         words = device_name.split()
+        if any(word in words for word in loopback_indicators):
+            return True
         return ('stereo' in words and 'mix' in words) or 'loopback' in words
 
     def _is_microphone(self, device: dict) -> bool:
         """Check if a device is a microphone device based on its name."""
         device_name = device['name'].lower()
-        # Specific microphone device indicators
         microphone_indicators = [
             'microphone',
             'mic',
             'headset',
             'webcam',
             'usb audio',
-            'bluetooth'
+            'bluetooth',
         ]
-        
-        # Check if any indicator is in the device name
-        for indicator in microphone_indicators:
-            if indicator in device_name:
-                return True
-        
-        # Also check individual words for more flexible matching
         words = device_name.split()
-        return 'microphone' in words or 'mic' in words
+        if any(word in words for word in microphone_indicators):
+            return True
+        return ('usb' in words and 'audio' in words) or 'loopback' in words
 
     def startup(self) -> int | None:
-        """Find and return a working audio input device based on MIC_MODE setting."""
+        """Find and return a working audio input device based on mic mode setting."""
         active_device = None
 
-        if MIC_MODE:
+        if get_mic_mode():
             for device in self._devices:
                 if self._is_microphone(device) and self._is_device_working(device['index']):
                     active_device = device

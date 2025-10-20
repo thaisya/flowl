@@ -2,7 +2,6 @@
 
 import json
 import os
-from typing import Final
 from dataclasses import dataclass, asdict
 
 
@@ -70,7 +69,7 @@ class SettingsManager:
         if self.to_code not in ["en", "ru"]:
             raise ValueError(f"Invalid to_code: {self.to_code}")
     
-    def save_to_file(self, filepath: str = "flowl_config.json") -> None:
+    def save_to_file(self, filepath: str = "config.json") -> None:
         """Save settings to JSON file."""
         self.validate()
         config_data = asdict(self)
@@ -79,7 +78,7 @@ class SettingsManager:
             json.dump(config_data, f, indent=2, ensure_ascii=False)
     
     @classmethod
-    def load_from_file(cls, filepath: str = "flowl_config.json") -> "SettingsManager":
+    def load_from_file(cls, filepath: str = "config.json") -> "SettingsManager":
         """Load settings from JSON file."""
         if not os.path.exists(filepath):
             return cls()
@@ -121,7 +120,6 @@ def set_settings(settings: SettingsManager) -> None:
     global _settings
     _settings = settings
 
-# Convenience properties for backward compatibility
 def get_audio_rate() -> int:
     return get_settings().rate
 

@@ -1,11 +1,11 @@
 """Basic PySide6 UI with sliding text window for Flowl translation."""
 
-from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QTextEdit
+from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QTextEdit, QPushButton
 from PySide6.QtCore import Qt, QTimer, Signal, QThread
 from PySide6.QtGui import QFont, QTextCursor
 
 from app import FlowlApp
-
+from .settings_tab import SettingsTab
 
 class SlidingTextWindow(QMainWindow):
     # Define signals for thread-safe communication
@@ -27,6 +27,11 @@ class SlidingTextWindow(QMainWindow):
         title.setFont(QFont("Arial", 16, QFont.Bold))
         layout.addWidget(title)
         
+        # Open settings window button
+        settings_button = QPushButton("Open Settings")
+        settings_button.clicked.connect(self.open_settings)
+        layout.addWidget(settings_button)
+
         # Text display area
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
@@ -60,6 +65,19 @@ class SlidingTextWindow(QMainWindow):
         # Auto-scroll to bottom
         self.text_display.moveCursor(QTextCursor.End)
 
+    def open_settings(self):
+        """Open the settings window."""
+        def on_saved():
+            self.restart_app()
+        dlg = SettingsTab(on_saved)
+        dlg.exec()
+
+    def restart_app(self):
+        try:
+            self.app.restart()
+            self.text_display.append("🔁 App restarted with new settings")
+        except Exception as e:
+            self.text_display.append(f"❌ Error restarting app: {e}")
 
 def create_ui_app():
     """Create and return the UI application."""

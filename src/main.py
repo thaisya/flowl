@@ -1,7 +1,7 @@
 """Application entry point for Flowl real-time translator."""
 
 import sys
-from utils import CONSOLE_MODE
+from utils.settings import get_console_mode
 
 def main():
     """Start the Flowl UI application."""
@@ -30,7 +30,7 @@ def console_mode():
 
 if __name__ == "__main__":
     # Check if user wants console mode
-    if CONSOLE_MODE:
+    if get_console_mode():
         console_mode()
     else:
         main()

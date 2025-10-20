@@ -10,6 +10,11 @@ from utils.device_manager import DeviceManager
 
 class FlowlApp:
     def __init__(self, ui_callback=None):
+        self.mt = None
+        self.asr = None
+        self.audio_engine = None
+        self.device_manager = None
+        self.models = None
         self.audio_q: deque[bytes] = deque(maxlen=50)
         self.events_q: deque[tuple[str, str]] = deque(maxlen=100)
         
@@ -17,7 +22,9 @@ class FlowlApp:
         self._audio_lock = threading.Lock()
         self._events_lock = threading.Lock()
         self._ui_callback = ui_callback  # Store UI callback
+        self.build_components()
 
+    def build_components(self):
         self.models = ModelBundle()
         
         # Initialize device manager and find device
@@ -53,6 +60,13 @@ class FlowlApp:
         self.mt.start()
         
         print("✓ Audio engine and workers started. You can talk now!")
+
+    def restart(self) -> None:
+        if self.is_running():
+            self.stop()
+            self.build_components()
+            self.start()
+        return None
 
     def is_running(self) -> bool:
         return self.audio_engine.is_active() if self.audio_engine else False

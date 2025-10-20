@@ -3,7 +3,7 @@
 from typing import Callable
 import sounddevice as sd
 import numpy as np
-from utils import AUDIO_RATE, FRAMES_PER_BUFFER
+from utils.settings import get_audio_rate, get_frames_per_buffer
 
 class AudioEngine:
     def __init__(self, on_audio: Callable[[bytes], None], device_index: int, noise_reducer=None):
@@ -32,8 +32,8 @@ class AudioEngine:
             if self._stream is None:
                 self._stream = sd.InputStream(
                     device=self._input_device_index,
-                    blocksize=FRAMES_PER_BUFFER,
-                    samplerate=AUDIO_RATE,
+                    blocksize=get_frames_per_buffer(),
+                    samplerate=get_audio_rate(),
                     channels=1,
                     dtype='int16',
                     callback=self._callback,

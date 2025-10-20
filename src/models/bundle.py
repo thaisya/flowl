@@ -7,7 +7,8 @@ from collections import OrderedDict
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
 
-from utils import AUDIO_RATE, MODEL_PATH, MT_MODEL_PATH, exec_time_wrap
+from utils.settings import get_audio_rate, get_model_path, get_mt_model_path
+from utils.utils import exec_time_wrap
 
 
 class ModelBundle:
@@ -25,19 +26,21 @@ class ModelBundle:
             self._device = "cpu"
 
         try:
-            print(f"Loading ASR model from: {MODEL_PATH}")
-            self._asr_model = Model(MODEL_PATH)
-            self.recognizer = KaldiRecognizer(self._asr_model, AUDIO_RATE)
+            model_path = get_model_path()
+            print(f"Loading ASR model from: {model_path}")
+            self._asr_model = Model(model_path)
+            self.recognizer = KaldiRecognizer(self._asr_model, get_audio_rate())
             print("✓ ASR model loaded successfully")
         except Exception as e:
-            raise RuntimeError(f"Failed to load ASR model from {MODEL_PATH}: {e}")
+            raise RuntimeError(f"Failed to load ASR model from {get_model_path()}: {e}")
         
         try:
-            print(f"Loading MT model: {MT_MODEL_PATH}")
-            self._tokenizer = AutoTokenizer.from_pretrained(MT_MODEL_PATH)
+            mt_model_path = get_mt_model_path()
+            print(f"Loading MT model: {mt_model_path}")
+            self._tokenizer = AutoTokenizer.from_pretrained(mt_model_path)
             
             self._mt_model = AutoModelForSeq2SeqLM.from_pretrained(
-                MT_MODEL_PATH,
+                mt_model_path,
                 dtype=torch.float16 if self._device == "cuda" else torch.float32
             ).to(self._device)
             
@@ -45,7 +48,7 @@ class ModelBundle:
             self._mt_model.eval()
             print(f"✓ MT model loaded successfully on {self._device}")
         except Exception as e:
-            raise RuntimeError(f"Failed to load MT model {MT_MODEL_PATH}: {e}")
+            raise RuntimeError(f"Failed to load MT model {get_mt_model_path()}: {e}")
 
 
     @exec_time_wrap
