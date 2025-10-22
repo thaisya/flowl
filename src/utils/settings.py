@@ -23,8 +23,8 @@ class SettingsManager:
     to_code: str = "ru"
     
     # Device settings
-    use_mic: bool = False
-    console_mode: bool = False
+    device_index: int = None
+    device_name: str = None
     
     # Model paths (computed properties)
     @property
@@ -78,53 +78,3 @@ class SettingsManager:
                 setattr(self, key, value)
 
 
-# Global settings instance
-_settings = None
-
-def get_settings() -> SettingsManager:
-    """Get the global settings instance."""
-    global _settings
-    if _settings is None:
-        _settings = SettingsManager.load_from_file()
-    return _settings
-
-def set_settings(settings: SettingsManager) -> None:
-    """Set the global settings instance."""
-    global _settings
-    _settings = settings
-
-def get_audio_rate() -> int:
-    return get_settings().rate
-
-def get_frames_per_buffer() -> int:
-    return get_settings().frames_per_buffer
-
-def get_throttle_ms() -> int:
-    return get_settings().throttle_ms
-
-def get_max_partial_words() -> int:
-    return get_settings().max_part_words
-
-def get_min_partial_words() -> int:
-    return get_settings().min_part_words
-
-def get_min_partial_chars() -> int:
-    return get_settings().min_part_chars
-
-def get_from_code() -> str:
-    return get_settings().from_code
-
-def get_to_code() -> str:
-    return get_settings().to_code
-
-def get_mic_mode() -> bool:
-    return get_settings().use_mic
-
-def get_console_mode() -> bool:
-    return get_settings().console_mode
-
-def get_model_path() -> str:
-    return get_settings().model_path
-
-def get_mt_model_path() -> str:
-    return get_settings().mt_model_path

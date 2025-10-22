@@ -7,13 +7,13 @@ from collections import OrderedDict
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from vosk import Model, KaldiRecognizer
 
-from utils.settings import get_audio_rate, get_model_path, get_mt_model_path
 from utils.utils import exec_time_wrap
 from utils.logger import logger
 
 
 class ModelBundle:
-    def __init__(self):
+    def __init__(self, settings):
+        self.settings = settings
         # Simple cache to avoid re-translating identical text
         self._translation_cache = OrderedDict()
         self._max_cache_size = 100    
@@ -27,16 +27,16 @@ class ModelBundle:
             self._device = "cpu"
 
         try:
-            model_path = get_model_path()
+            model_path = self.settings.model_path
             logger.info(f"Loading ASR model from: {model_path}", "MODELS")
             self._asr_model = Model(model_path)
-            self.recognizer = KaldiRecognizer(self._asr_model, get_audio_rate())
+            self.recognizer = KaldiRecognizer(self._asr_model, self.settings.rate)
             logger.info("ASR model loaded successfully", "MODELS")
         except Exception as e:
-            raise RuntimeError(f"Failed to load ASR model from {get_model_path()}: {e}")
+            raise RuntimeError(f"Failed to load ASR model from {self.settings.model_path}: {e}")
         
         try:
-            mt_model_path = get_mt_model_path()
+            mt_model_path = self.settings.mt_model_path
             logger.info(f"Loading MT model: {mt_model_path}", "MODELS")
             self._tokenizer = AutoTokenizer.from_pretrained(mt_model_path)
             
@@ -49,7 +49,7 @@ class ModelBundle:
             self._mt_model.eval()
             logger.info(f"MT model loaded successfully on {self._device}", "MODELS")
         except Exception as e:
-            raise RuntimeError(f"Failed to load MT model {get_mt_model_path()}: {e}")
+            raise RuntimeError(f"Failed to load MT model {self.settings.mt_model_path}: {e}")
 
 
     @exec_time_wrap

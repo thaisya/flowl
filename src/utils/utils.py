@@ -1,16 +1,11 @@
 """Small text utilities for Flowl."""
 
 import time
-from .settings import get_max_partial_words
 from .logger import logger
 
-# All configuration constants have been moved to settings.py
-# Use the getter functions from settings.py instead
-
-def filter_partial(text: str) -> str:
-    """Trim a partial string to the last MAX_PARTIAL_WORDS words."""
+def filter_partial(text: str, max_words: int) -> str:
+    """Trim a partial string to the last max_words words."""
     words = text.split()
-    max_words = get_max_partial_words()
     if len(words) > max_words:
         text = " ".join(words[-max_words:])
     return text

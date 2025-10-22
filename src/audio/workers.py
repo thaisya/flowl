@@ -5,13 +5,12 @@ import time
 import json
 from collections import deque
 
-from utils.settings import get_throttle_ms, get_min_partial_chars, get_min_partial_words
 from utils.utils import filter_partial, exec_time_wrap
 from utils.logger import logger
 
 
 class ASRWorker(threading.Thread):
-    def __init__(self, audio_q: deque, events_q: deque, recognizer, audio_lock: threading.Lock, events_lock: threading.Lock):
+    def __init__(self, audio_q: deque, events_q: deque, recognizer, audio_lock: threading.Lock, events_lock: threading.Lock, settings):
         super().__init__(daemon=True)
         self._audio_q = audio_q
         self._events_q = events_q
@@ -19,6 +18,7 @@ class ASRWorker(threading.Thread):
         self._prev_partial = ""
         self._last_partial_time = 0.0
         self._audio_lock = audio_lock
+        self.settings = settings
         self._events_lock = events_lock
 
     def generate_final_result(self, data: bytes) -> None:
@@ -32,7 +32,7 @@ class ASRWorker(threading.Thread):
 
     def generate_partial_result(self, data: bytes) -> None:
         now = time.time() * 1000
-        if now - self._last_partial_time < get_throttle_ms():
+        if now - self._last_partial_time < self.settings.throttle_ms:
             return
 
         self._last_partial_time = now
@@ -40,7 +40,7 @@ class ASRWorker(threading.Thread):
         pres = json.loads(self._rec.PartialResult())
         partial_text = pres.get("partial", "").strip()
 
-        if not partial_text or partial_text == self._prev_partial or (len(partial_text) < get_min_partial_chars() and len(partial_text.split()) < get_min_partial_words()):
+        if not partial_text or partial_text == self._prev_partial or (len(partial_text) < self.settings.min_part_chars and len(partial_text.split()) < self.settings.min_part_words):
             return
 
         with self._events_lock:
@@ -73,7 +73,7 @@ class ASRWorker(threading.Thread):
 
 
 class MTWorker(threading.Thread):
-    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Lock, ui_callback=None):
+    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Lock, ui_callback=None, settings=None):
         super().__init__(daemon=True)
         self._events_q = events_q
         self._translate = translate_fn
@@ -81,6 +81,7 @@ class MTWorker(threading.Thread):
         self._last_emit_time = 0.0
         self._last_shown_partial = ""
         self._ui_callback = ui_callback  # Callback for UI updates
+        self.settings = settings
 
     def output_final_result(self, text) -> None:
         if not text:
@@ -102,7 +103,7 @@ class MTWorker(threading.Thread):
         except (IndexError, ValueError):
             pass
 
-        if final_text_sliced != partial_text_sliced and len(final_text_sliced) >= get_min_partial_chars():
+        if final_text_sliced != partial_text_sliced and len(final_text_sliced) >= self.settings.min_part_chars:
             try:
                 translated_text = self._translate(final_text_sliced)
                 if self._ui_callback:
@@ -130,16 +131,16 @@ class MTWorker(threading.Thread):
 
     def output_partial_result(self, text: str) -> None:
         now = time.time() * 1000.0
-        if now - self._last_emit_time < get_throttle_ms():
+        if now - self._last_emit_time < self.settings.throttle_ms:
             return
 
         if text == self._last_shown_partial:
             return
 
-        if len(text) < get_min_partial_chars() and len(text.split()) < get_min_partial_words():
+        if len(text) < self.settings.min_part_chars and len(text.split()) < self.settings.min_part_words:
             return
 
-        text = filter_partial(text)
+        text = filter_partial(text, self.settings.max_part_words)
         try:
             translated_partial = self._translate(text)
             # Send structured event to UI instead of printing

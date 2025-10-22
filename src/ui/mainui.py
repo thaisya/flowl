@@ -6,6 +6,7 @@ from PySide6.QtGui import QFont, QTextCursor
 
 from app import FlowlApp
 from .settings_tab import SettingsTab
+from utils.settings import SettingsManager
 from utils.logger import logger
 
 class SlidingTextWindow(QMainWindow):
@@ -58,6 +59,7 @@ class SlidingTextWindow(QMainWindow):
         self.log_display.setReadOnly(True)
         self.log_display.setFont(QFont("Courier New", 10))  # Monospace font for logs
         self.log_display.setPlaceholderText("Log information will appear here...")
+        self.log_display.setAcceptRichText(True)  # Enable HTML formatting
         log_layout.addWidget(self.log_display)
         
         # Clear logs button
@@ -74,8 +76,9 @@ class SlidingTextWindow(QMainWindow):
         # Set up the global logger to use our UI callback
         logger.set_ui_callback(self.on_log_event, self)
         
-        # Initialize FlowlApp with our callbacks
-        self.app = FlowlApp(ui_callback=self.on_translation_event)
+        # Load settings and initialize FlowlApp with our callbacks
+        settings = SettingsManager.load_from_file()
+        self.app = FlowlApp(ui_callback=self.on_translation_event, settings=settings)
         
         # Start the app
         self.app.start()
@@ -106,9 +109,25 @@ class SlidingTextWindow(QMainWindow):
     def update_log(self, event_type: str, data: dict):
         """Update the log display (runs in main thread)."""
         log_message = data.get('message', '')
+        log_level = data.get('level', 'INFO')
         
-        self.log_display.append(log_message)
-        self.log_display.moveCursor(QTextCursor.End)
+        # Set color based on log level
+        if log_level == "ERROR":
+            color = "#DC143C"  # Crimson Red
+        elif log_level == "WARNING":
+            color = "#FF8C00"  # Dark Orange
+        elif log_level == "INFO":
+            color = "#0066CC"  # Blue
+        elif log_level == "DEBUG":
+            color = "#696969"  # Dim Gray
+        else:
+            color = "#000000"  # Black (default)
+        
+        # Format message with color
+        colored_message = f'<span style="color: {color};">{log_message}</span>'
+        
+        # Append to log display with HTML formatting
+        self.log_display.append(colored_message)
     
     def clear_logs(self):
         """Clear the log display."""

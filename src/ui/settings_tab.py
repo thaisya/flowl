@@ -2,7 +2,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                                QGroupBox, QSpinBox, QComboBox, QCheckBox, 
                                QPushButton, QLabel, QLineEdit, QTabWidget, QWidget, QMessageBox)
 from PySide6.QtCore import Qt
-from utils.settings import get_settings, set_settings
+from utils.settings import SettingsManager
+from utils.device_manager import devices_query
 
 class SettingsTab(QDialog):
     def __init__(self, on_saved):
@@ -12,7 +13,7 @@ class SettingsTab(QDialog):
         self.setModal(True)
         
         # Load current settings
-        self.settings = get_settings()
+        self.settings = SettingsManager.load_from_file()
         
         # Create main layout
         layout = QVBoxLayout()
@@ -159,21 +160,33 @@ class SettingsTab(QDialog):
         device_group = QGroupBox("Input Device")
         device_layout = QFormLayout()
         
-        self.mic_checkbox = QCheckBox("Use Microphone")
-        device_layout.addRow("Input Mode:", self.mic_checkbox)
+        self.device_select = QComboBox()
+        device_dict = devices_query()
+        device_items = []
+        name_counts = {}
+
+        # Check for duplicate names
+        for idx, name in device_dict.items():
+            name_counts[name] = name_counts.get(name, 0) + 1
+
+        # Build display items
+        for idx, name in device_dict.items():
+            if name_counts[name] > 1:
+                display_name = f"{name} (#{idx})"
+            else:
+                display_name = name
+            device_items.append((idx, display_name))
+
+        # Populate combobox
+        for i, (idx, display_name) in enumerate(device_items):
+            if i == 0:
+                display_name = f"{display_name} - DEFAULT"
+            self.device_select.addItem(display_name, idx)
+        
+        device_layout.addRow("Device Select:", self.device_select)
         
         device_group.setLayout(device_layout)
         layout.addWidget(device_group)
-        
-        # Application Mode
-        mode_group = QGroupBox("Application Mode")
-        mode_layout = QFormLayout()
-        
-        self.console_checkbox = QCheckBox("Console Mode")
-        mode_layout.addRow("Interface:", self.console_checkbox)
-        
-        mode_group.setLayout(mode_layout)
-        layout.addWidget(mode_group)
         
         layout.addStretch()
         return widget
@@ -225,8 +238,13 @@ class SettingsTab(QDialog):
         self.to_lang_combo.setCurrentText("Russian (ru)" if self.settings.to_code == "ru" else "English (en)")
         
         # Device settings
-        self.mic_checkbox.setChecked(self.settings.use_mic)
-        self.console_checkbox.setChecked(self.settings.console_mode)
+        # Load saved device
+        if self.settings.device_index is not None:
+            # Find and select the device in combobox by index
+            for i in range(self.device_select.count()):
+                if self.device_select.itemData(i) == self.settings.device_index:
+                    self.device_select.setCurrentIndex(i)
+                    break
         
         # Update model paths
         self.update_model_paths()
@@ -245,7 +263,7 @@ class SettingsTab(QDialog):
         info += f"Frames: {self.settings.frames_per_buffer} | "
         info += f"Throttle: {self.settings.throttle_ms}ms | "
         info += f"Languages: {self.settings.from_code}→{self.settings.to_code} | "
-        info += f"Mic: {'Yes' if self.settings.use_mic else 'No'}"
+        info += f"Device: {self.settings.device_index if self.settings.device_index is not None else 'Auto'}"
         self.config_info.setText(info)
     
     def save_settings(self):
@@ -265,14 +283,18 @@ class SettingsTab(QDialog):
             self.settings.to_code = "ru" if "Russian" in self.to_lang_combo.currentText() else "en"
             
             # Device settings
-            self.settings.use_mic = self.mic_checkbox.isChecked()
-            self.settings.console_mode = self.console_checkbox.isChecked()
+            # Save selected device index from combobox userData
+            selected_index = self.device_select.currentIndex()
+            if selected_index >= 0:
+                self.settings.device_index = self.device_select.itemData(selected_index)
+            else:
+                self.settings.device_index = None
+            self.settings.device_name = self.device_select.currentText()
 
             # Validate settings
             self.validate()
 
-            # Save to global settings and file
-            set_settings(self.settings)
+            # Save settings to file
             self.settings.save_to_file()
             self._on_saved()
             self.accept()
@@ -324,9 +346,6 @@ class SettingsTab(QDialog):
         
         self.from_lang_combo.setCurrentText("English (en)")
         self.to_lang_combo.setCurrentText("Russian (ru)")
-        
-        self.mic_checkbox.setChecked(default_settings.use_mic)
-        self.console_checkbox.setChecked(default_settings.console_mode)
-        
+                
         self.update_model_paths()
         self.update_config_info()

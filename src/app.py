@@ -6,11 +6,12 @@ from audio.engine import AudioEngine
 from audio.workers import ASRWorker, MTWorker
 from models.bundle import ModelBundle
 from utils.device_manager import DeviceManager
+from utils.settings import SettingsManager
 from utils.logger import logger
 
 
 class FlowlApp:
-    def __init__(self, ui_callback=None):
+    def __init__(self, ui_callback=None, settings=None):
         self.mt = None
         self.asr = None
         self.audio_engine = None
@@ -19,6 +20,9 @@ class FlowlApp:
         self.audio_q: deque[bytes] = deque(maxlen=50)
         self.events_q: deque[tuple[str, str]] = deque(maxlen=100)
         
+        # Load settings
+        self.settings = settings or SettingsManager.load_from_file()
+        
         # Create locks for thread-safe queue operations
         self._audio_lock = threading.Lock()
         self._events_lock = threading.Lock()
@@ -26,23 +30,24 @@ class FlowlApp:
         self.build_components()
 
     def build_components(self):
-        self.models = ModelBundle()
+        self.models = ModelBundle(self.settings)
         
         # Initialize device manager and find device
-        self.device_manager = DeviceManager()
+        self.device_manager = DeviceManager(self.settings)
         device_index = self.device_manager.startup()
 
         self.audio_engine = AudioEngine(
             on_audio=self._on_audio, 
             device_index=device_index,
+            settings=self.settings,
             noise_reducer=None,
         )
         if device_index is not None:
             logger.info(f"Created audio engine (device: {device_index}) "
                        f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
 
-        self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_lock, self._events_lock)
-        self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock, self._ui_callback)
+        self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_lock, self._events_lock, self.settings)
+        self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock, self._ui_callback, self.settings)
 
 
     def _on_audio(self, in_data: bytes) -> None:
@@ -65,9 +70,14 @@ class FlowlApp:
 
     def restart(self) -> None:
         if self.is_running():
+            logger.info("Restarting app with new settings...", "APP")
             self.stop()
+            # Reload settings from file to get latest changes
+            self.settings = SettingsManager.load_from_file()
+            logger.info(f"Reloaded settings - device_index: {self.settings.device_index}", "APP")
             self.build_components()
             self.start()
+            logger.info("App restart completed", "APP")
         return None
 
     def is_running(self) -> bool:

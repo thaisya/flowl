@@ -3,15 +3,15 @@
 from typing import Callable
 import sounddevice as sd
 import numpy as np
-from utils.settings import get_audio_rate, get_frames_per_buffer
 from utils.logger import logger
 
 class AudioEngine:
-    def __init__(self, on_audio: Callable[[bytes], None], device_index: int, noise_reducer=None):
+    def __init__(self, on_audio: Callable[[bytes], None], device_index: int, settings, noise_reducer=None):
         self._on_audio = on_audio
         self._stream = None
         self._input_device_index = device_index
         self._noise_reducer = noise_reducer
+        self.settings = settings
 
     def _callback(self, in_data: np.ndarray, frame_count: int, time_info, status) -> None:
         if status:
@@ -33,8 +33,8 @@ class AudioEngine:
             if self._stream is None:
                 self._stream = sd.InputStream(
                     device=self._input_device_index,
-                    blocksize=get_frames_per_buffer(),
-                    samplerate=get_audio_rate(),
+                    blocksize=self.settings.frames_per_buffer,
+                    samplerate=self.settings.rate,
                     channels=1,
                     dtype='int16',
                     callback=self._callback,

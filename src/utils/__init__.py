@@ -6,13 +6,11 @@ from .utils import (
 )
 
 from .device_manager import DeviceManager
-from .settings import SettingsManager, get_settings, set_settings
+from .settings import SettingsManager
 
 __all__ = [
     "filter_partial",
     "DeviceManager",
     "exec_time_wrap",
-    "SettingsManager",
-    "get_settings",
-    "set_settings"
+    "SettingsManager"
 ]
