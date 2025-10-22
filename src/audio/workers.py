@@ -7,6 +7,7 @@ from collections import deque
 
 from utils.settings import get_throttle_ms, get_min_partial_chars, get_min_partial_words
 from utils.utils import filter_partial, exec_time_wrap
+from utils.logger import logger
 
 
 class ASRWorker(threading.Thread):
@@ -56,7 +57,7 @@ class ASRWorker(threading.Thread):
                         continue
                     data = self._audio_q.popleft()
                     if data is None:
-                        print("[ASR EXIT]")
+                        logger.info("ASR worker exiting", "ASR")
                         break
             except IndexError:
                 time.sleep(0.001)
@@ -68,7 +69,7 @@ class ASRWorker(threading.Thread):
                 else:
                     self.generate_partial_result(data)
             except Exception as e:
-                print(f"[ASR ERROR] --> {e}")
+                logger.error(f"ASR ERROR: {e}", "ASR")
 
 
 class MTWorker(threading.Thread):
@@ -111,7 +112,7 @@ class MTWorker(threading.Thread):
                         "timestamp": time.time()
                     })
                 else:
-                    print(f"[FINAL] {final_text_sliced} --> {translated_text}")
+                    logger.info(f"Final translation: {final_text_sliced} --> {translated_text}", "MT")
             except Exception as e:
                 if self._ui_callback:
                     self._ui_callback("error", {
@@ -121,7 +122,7 @@ class MTWorker(threading.Thread):
                         "timestamp": time.time()
                     })
                 else:
-                    print(f"[FINAL ERROR] {final_text_sliced} --> {e}")
+                    logger.error(f"Final translation error: {final_text_sliced} --> {e}", "MT")
 
         self._last_emit_time = 0
         self._last_shown_partial = ""
@@ -149,7 +150,7 @@ class MTWorker(threading.Thread):
                     "timestamp": now
                 })
             else:
-                print(f"[PARTIAL] {text} --> {translated_partial}")
+                logger.info(f"Partial translation: {text} --> {translated_partial}", "MT")
             self._last_emit_time = now
             self._last_shown_partial = text
         except Exception as e:
@@ -161,7 +162,7 @@ class MTWorker(threading.Thread):
                     "timestamp": now
                 })
             else:
-                print(f"[PARTIAL ERROR] --> {e}")
+                logger.error(f"Partial translation error: {e}", "MT")
         
 
     def run(self) -> None:
@@ -178,7 +179,7 @@ class MTWorker(threading.Thread):
 
             if text_type == "final":
                 if text is None:
-                    print("[FINAL EXIT]")
+                    logger.info("MT worker exiting", "MT")
                     break
                 self.output_final_result(text)
 

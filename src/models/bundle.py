@@ -9,6 +9,7 @@ from vosk import Model, KaldiRecognizer
 
 from utils.settings import get_audio_rate, get_model_path, get_mt_model_path
 from utils.utils import exec_time_wrap
+from utils.logger import logger
 
 
 class ModelBundle:
@@ -20,23 +21,23 @@ class ModelBundle:
         # Try to load on GPU for much faster inference
         try:
             self._device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"Using device: {self._device}")
+            logger.info(f"Using device: {self._device}", "MODELS")
         except Exception as e:
-            print(f"Failed to load torch: {e}")
+            logger.warning(f"Failed to load torch: {e}, using CPU", "MODELS")
             self._device = "cpu"
 
         try:
             model_path = get_model_path()
-            print(f"Loading ASR model from: {model_path}")
+            logger.info(f"Loading ASR model from: {model_path}", "MODELS")
             self._asr_model = Model(model_path)
             self.recognizer = KaldiRecognizer(self._asr_model, get_audio_rate())
-            print("✓ ASR model loaded successfully")
+            logger.info("ASR model loaded successfully", "MODELS")
         except Exception as e:
             raise RuntimeError(f"Failed to load ASR model from {get_model_path()}: {e}")
         
         try:
             mt_model_path = get_mt_model_path()
-            print(f"Loading MT model: {mt_model_path}")
+            logger.info(f"Loading MT model: {mt_model_path}", "MODELS")
             self._tokenizer = AutoTokenizer.from_pretrained(mt_model_path)
             
             self._mt_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -46,7 +47,7 @@ class ModelBundle:
             
             # Enable evaluation mode for faster inference
             self._mt_model.eval()
-            print(f"✓ MT model loaded successfully on {self._device}")
+            logger.info(f"MT model loaded successfully on {self._device}", "MODELS")
         except Exception as e:
             raise RuntimeError(f"Failed to load MT model {get_mt_model_path()}: {e}")
 
@@ -83,7 +84,7 @@ class ModelBundle:
             
             return result
         except Exception as e:
-            print(f"[TRANSLATION ERROR] Failed to translate '{text}': {e}")
+            logger.error(f"Failed to translate '{text}': {e}", "MODELS")
             return text  # Return original text if translation fails
 
     def _cleanup_cache(self) -> None:
@@ -103,7 +104,7 @@ class ModelBundle:
     def clear_cache(self) -> None:
         """Clear the translation cache. DEBUG TOOL"""
         self._translation_cache.clear()
-        print(f"[CACHE] Cleared translation cache")
+        logger.info("Cleared translation cache", "MODELS")
 
 
 

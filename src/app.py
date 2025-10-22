@@ -6,6 +6,7 @@ from audio.engine import AudioEngine
 from audio.workers import ASRWorker, MTWorker
 from models.bundle import ModelBundle
 from utils.device_manager import DeviceManager
+from utils.logger import logger
 
 
 class FlowlApp:
@@ -37,11 +38,12 @@ class FlowlApp:
             noise_reducer=None,
         )
         if device_index is not None:
-            print(f"✓ Created audio engine (device: {device_index}) "
-                  f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
+            logger.info(f"Created audio engine (device: {device_index}) "
+                       f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
 
         self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_lock, self._events_lock)
         self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock, self._ui_callback)
+
 
     def _on_audio(self, in_data: bytes) -> None:
         """Callback for audio data."""
@@ -53,13 +55,13 @@ class FlowlApp:
         # Start audio engine if available
         if self.audio_engine:
             self.audio_engine.start()
-            print(f"✓ Audio engine started")
+            logger.info("Audio engine started")
         
         # Start worker threads
         self.asr.start()
         self.mt.start()
         
-        print("✓ Audio engine and workers started. You can talk now!")
+        logger.info("Audio engine and workers started. You can talk now!")
 
     def restart(self) -> None:
         if self.is_running():
@@ -73,25 +75,25 @@ class FlowlApp:
 
     def stop(self) -> None:
         """Stop audio engine and worker threads gracefully."""
-        print("Stopping FlowlApp...")
+        logger.info("Stopping FlowlApp...")
         
         # Stop audio engine first to prevent new data from entering queues
         if self.audio_engine:
             self.audio_engine.stop()
-            print("✓ Audio engine stopped")
+            logger.info("Audio engine stopped")
         
         # Signal threads to stop by sending sentinel values
         try:
             with self._audio_lock:
                 self.audio_q.append(None)
         except Exception as e:
-            print(f"Warning: Error sending audio sentinel: {e}")
+            logger.warning(f"Error sending audio sentinel: {e}")
             
         try:
             with self._events_lock:
                 self.events_q.append(("final", None))  # MTWorker exits on this sentinel
         except Exception as e:
-            print(f"Warning: Error sending events sentinel: {e}")
+            logger.warning(f"Error sending events sentinel: {e}")
         
         # Join worker threads with timeout
         threads_to_join = []
@@ -103,9 +105,9 @@ class FlowlApp:
         for thread_name, thread in threads_to_join:
             thread.join(timeout=2.0)
             if thread.is_alive():
-                print(f"Warning: {thread_name} thread did not stop within timeout")
+                logger.warning(f"{thread_name} thread did not stop within timeout")
             else:
-                print(f"✓ {thread_name} thread stopped")
+                logger.info(f"{thread_name} thread stopped")
         
-        print("FlowlApp stopped")
+        logger.info("FlowlApp stopped")
     

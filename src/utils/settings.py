@@ -3,6 +3,7 @@
 import json
 import os
 from dataclasses import dataclass, asdict
+from utils.logger import logger
 
 
 @dataclass
@@ -42,36 +43,10 @@ class SettingsManager:
         else:
             # Default fallback
             return "Helsinki-NLP/opus-mt-en-ru"
-    
-    def validate(self) -> None:
-        """Validate settings values."""
-        if self.rate not in [8000, 16000, 22050, 44100, 48000]:
-            raise ValueError(f"Invalid audio rate: {self.rate}")
-        
-        if self.frames_per_buffer <= 0:
-            raise ValueError(f"Invalid frames_per_buffer: {self.frames_per_buffer}")
-        
-        if self.throttle_ms <= 0:
-            raise ValueError(f"Invalid throttle_ms: {self.throttle_ms}")
-        
-        if self.max_part_words <= 0:
-            raise ValueError(f"Invalid max_part_words: {self.max_part_words}")
-        
-        if self.min_part_words <= 0:
-            raise ValueError(f"Invalid min_part_words: {self.min_part_words}")
-        
-        if self.min_part_chars <= 0:
-            raise ValueError(f"Invalid min_part_chars: {self.min_part_chars}")
-        
-        if self.from_code not in ["en", "ru"]:
-            raise ValueError(f"Invalid from_code: {self.from_code}")
-        
-        if self.to_code not in ["en", "ru"]:
-            raise ValueError(f"Invalid to_code: {self.to_code}")
+
     
     def save_to_file(self, filepath: str = "config.json") -> None:
         """Save settings to JSON file."""
-        self.validate()
         config_data = asdict(self)
         
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -87,14 +62,13 @@ class SettingsManager:
             with open(filepath, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
             
-            # Create settings instance and validate
+            # Create settings instance
             settings = cls(**config_data)
-            settings.validate()
             return settings
             
         except (json.JSONDecodeError, ValueError, TypeError) as e:
-            print(f"Error loading config file {filepath}: {e}")
-            print("Using default settings.")
+            logger.warning(f"Error loading config file {filepath}: {e}", "SETTINGS")
+            logger.info("Using default settings.", "SETTINGS")
             return cls()
     
     def update_from_dict(self, config_dict: dict) -> None:
@@ -102,7 +76,6 @@ class SettingsManager:
         for key, value in config_dict.items():
             if hasattr(self, key):
                 setattr(self, key, value)
-        self.validate()
 
 
 # Global settings instance

@@ -4,6 +4,7 @@ from typing import Callable
 import sounddevice as sd
 import numpy as np
 from utils.settings import get_audio_rate, get_frames_per_buffer
+from utils.logger import logger
 
 class AudioEngine:
     def __init__(self, on_audio: Callable[[bytes], None], device_index: int, noise_reducer=None):
@@ -14,7 +15,7 @@ class AudioEngine:
 
     def _callback(self, in_data: np.ndarray, frame_count: int, time_info, status) -> None:
         if status:
-            print(f"Audio callback Status: {status}")
+            logger.debug(f"Audio callback Status: {status}", "AUDIO")
             return
 
         if in_data is None or len(in_data) == 0:
@@ -25,7 +26,7 @@ class AudioEngine:
 
     def start(self) -> None:
         if self._input_device_index is None:
-            print("[AUDIO WARNING] No device index provided, cannot start audio engine")
+            logger.warning("No device index provided, cannot start audio engine", "AUDIO")
             return
             
         try:
@@ -39,9 +40,9 @@ class AudioEngine:
                     callback=self._callback,
                 )
             self._stream.start()
-            print(f"[AUDIO] Audio engine started on device {self._input_device_index}")
+            logger.info(f"Audio engine started on device {self._input_device_index}", "AUDIO")
         except Exception as e:
-            print(f"[AUDIO ERROR] Failed to start audio engine: {e}")
+            logger.error(f"Failed to start audio engine: {e}", "AUDIO")
             self._stream = None
 
     def is_active(self) -> bool:
@@ -53,9 +54,9 @@ class AudioEngine:
                 if self._stream.active:
                     self._stream.stop()
                 self._stream.close()
-                print("[AUDIO] Audio engine stopped")
+                logger.info("Audio engine stopped", "AUDIO")
             except Exception as e:
-                print(f"[AUDIO ERROR] Error stopping audio engine: {e}")
+                logger.error(f"Error stopping audio engine: {e}", "AUDIO")
             finally:
                 self._stream = None
 

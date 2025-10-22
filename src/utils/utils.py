@@ -2,6 +2,7 @@
 
 import time
 from .settings import get_max_partial_words
+from .logger import logger
 
 # All configuration constants have been moved to settings.py
 # Use the getter functions from settings.py instead
@@ -19,7 +20,7 @@ def exec_time_wrap(func):
         start = time.perf_counter()
         result = func(*args, **kwargs)
         end = time.perf_counter()
-        print(f'Function {func.__name__} took {end - start:.6f} seconds\n')
+        logger.debug(f'Function {func.__name__} took {end - start:.6f} seconds', "PERF")
         return result
     return wrapper
  

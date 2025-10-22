@@ -1,5 +1,6 @@
 import sounddevice as sd
 from .settings import get_audio_rate, get_mic_mode
+from .logger import logger
 
 
 class DeviceManager:
@@ -27,7 +28,7 @@ class DeviceManager:
                 if device['index'] == device_index:
                     device_name = device['name']
                     break
-            print(f"Device '{device_name}' (index {device_index}) is not working: {e}")
+            logger.warning(f"Device '{device_name}' (index {device_index}) is not working: {e}", "DEVICE")
             return False
         finally:
             if test_stream:
@@ -73,13 +74,13 @@ class DeviceManager:
             for device in self._devices:
                 if self._is_microphone(device) and self._is_device_working(device['index']):
                     active_device = device
-                    print(f"✓ Found microphone device: {device['name']} (index: {device['index']})")
+                    logger.info(f"Found microphone device: {device['name']} (index: {device['index']})", "DEVICE")
                     break
         else:
             for device in self._devices:
                 if self._is_loopback_device(device) and self._is_device_working(device['index']):
                     active_device = device
-                    print(f"✓ Found loopback device: {device['name']} (index: {device['index']})")
+                    logger.info(f"Found loopback device: {device['name']} (index: {device['index']})", "DEVICE")
                     break
 
         device_result = active_device['index'] if active_device else None
@@ -105,7 +106,7 @@ class DeviceManager:
                 mic_device = device
                 self._working_microphone_index = device['index']
                 self._input_microphone_index = device['index']
-                print(f"✓ Found microphone device: {device['name']} (index: {device['index']})")
+                logger.info(f"Found microphone device: {device['name']} (index: {device['index']})", "DEVICE")
                 break
         
         # Find loopback device
@@ -114,7 +115,7 @@ class DeviceManager:
                 loopback_device = device
                 self._working_loopback_index = device['index']
                 self._input_loopback_index = device['index']
-                print(f"✓ Found loopback device: {device['name']} (index: {device['index']})")
+                logger.info(f"Found loopback device: {device['name']} (index: {device['index']})", "DEVICE")
                 break
         
         # Return both devices (can be None if not found)
@@ -149,9 +150,9 @@ class DeviceManager:
                         break
                 
                 if self._input_microphone_index is None:
-                    print("No microphone device found")
+                    logger.warning("No microphone device found", "DEVICE")
             except Exception as e:
-                print(f"Error getting input microphone index: {e}")
+                logger.error(f"Error getting input microphone index: {e}", "DEVICE")
                 self._input_microphone_index = None
         return self._input_microphone_index
     
@@ -165,8 +166,8 @@ class DeviceManager:
                         break
                 
                 if self._input_loopback_index is None:
-                    print("No loopback device found (Stereo Mix, etc.)")
+                    logger.warning("No loopback device found (Stereo Mix, etc.)", "DEVICE")
             except Exception as e:
-                print(f"Error getting input loopback index: {e}")
+                logger.error(f"Error getting input loopback index: {e}", "DEVICE")
                 self._input_loopback_index = None
         return self._input_loopback_index

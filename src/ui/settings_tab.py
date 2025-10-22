@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, 
                                QGroupBox, QSpinBox, QComboBox, QCheckBox, 
-                               QPushButton, QLabel, QLineEdit, QTabWidget, QWidget)
+                               QPushButton, QLabel, QLineEdit, QTabWidget, QWidget, QMessageBox)
 from PySide6.QtCore import Qt
 from utils.settings import get_settings, set_settings
 
@@ -73,7 +73,7 @@ class SettingsTab(QDialog):
         rate_layout = QFormLayout()
         
         self.rate_combobox = QComboBox()
-        self.rate_combobox.addItems(["8000 Hz", "16000 Hz", "22050 Hz", "44100 Hz", "48000 Hz"])
+        self.rate_combobox.addItems(["8000 Hz", "16000 Hz - recommended", "22050 Hz", "44100 Hz", "48000 Hz"])
         rate_layout.addRow("Sample Rate:", self.rate_combobox)
         
         self.frames_combobox = QComboBox()
@@ -81,7 +81,7 @@ class SettingsTab(QDialog):
         rate_layout.addRow("Frames per Buffer:", self.frames_combobox)
         
         self.throttle_spinbox = QSpinBox()
-        self.throttle_spinbox.setRange(10, 50)
+        self.throttle_spinbox.setRange(10, 100)
         self.throttle_spinbox.setSuffix(" ms")
         rate_layout.addRow("Throttle Time:", self.throttle_spinbox)
         
@@ -205,6 +205,11 @@ class SettingsTab(QDialog):
         rate_index = self.rate_combobox.findText(rate_text)
         if rate_index >= 0:
             self.rate_combobox.setCurrentIndex(rate_index)
+        else:
+            for i in range(self.rate_combobox.count()):
+                if rate_text in self.rate_combobox.itemText(i):
+                    self.rate_combobox.setCurrentIndex(i)
+                    break
         
         frames_text = str(self.settings.frames_per_buffer)
         frames_index = self.frames_combobox.findText(frames_text)
@@ -245,28 +250,65 @@ class SettingsTab(QDialog):
     
     def save_settings(self):
         """Save the current form values to settings."""
-        # Audio settings
-        rate_text = self.rate_combobox.currentText()
-        self.settings.rate = int(rate_text.split()[0])
-        self.settings.frames_per_buffer = int(self.frames_combobox.currentText())
-        self.settings.throttle_ms = self.throttle_spinbox.value()
-        self.settings.max_part_words = self.max_part_words_spinbox.value()
-        self.settings.min_part_words = self.min_part_words_spinbox.value()
-        self.settings.min_part_chars = self.min_part_chars_spinbox.value()
-        
-        # Language settings
-        self.settings.from_code = "en" if "English" in self.from_lang_combo.currentText() else "ru"
-        self.settings.to_code = "ru" if "Russian" in self.to_lang_combo.currentText() else "en"
-        
-        # Device settings
-        self.settings.use_mic = self.mic_checkbox.isChecked()
-        self.settings.console_mode = self.console_checkbox.isChecked()
-        
-        # Save to global settings and file
-        set_settings(self.settings)
-        self.settings.save_to_file()
-        self._on_saved()
-        self.accept()
+        try:
+            # Audio settings
+            rate_text = self.rate_combobox.currentText()
+            self.settings.rate = int(rate_text.split()[0])
+            self.settings.frames_per_buffer = int(self.frames_combobox.currentText())
+            self.settings.throttle_ms = self.throttle_spinbox.value()
+            self.settings.max_part_words = self.max_part_words_spinbox.value()
+            self.settings.min_part_words = self.min_part_words_spinbox.value()
+            self.settings.min_part_chars = self.min_part_chars_spinbox.value()
+            
+            # Language settings
+            self.settings.from_code = "en" if "English" in self.from_lang_combo.currentText() else "ru"
+            self.settings.to_code = "ru" if "Russian" in self.to_lang_combo.currentText() else "en"
+            
+            # Device settings
+            self.settings.use_mic = self.mic_checkbox.isChecked()
+            self.settings.console_mode = self.console_checkbox.isChecked()
+
+            # Validate settings
+            self.validate()
+
+            # Save to global settings and file
+            set_settings(self.settings)
+            self.settings.save_to_file()
+            self._on_saved()
+            self.accept()
+
+        except ValueError as e:
+            QMessageBox.warning(self, "Invalid Settings", str(e))
+            return
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
+            return
+
+    def validate(self):
+        """Validate settings values."""
+        if self.settings.rate not in [8000, 16000, 22050, 44100, 48000]:
+            raise ValueError(f"Invalid audio rate: {self.settings.rate}")
+
+        if self.settings.frames_per_buffer not in [512, 1024, 2048, 4096, 8192]:
+            raise ValueError(f"Invalid frames_per_buffer: {self.settings.frames_per_buffer}")
+
+        if self.settings.throttle_ms <= 0:
+            raise ValueError(f"Invalid throttle_ms: {self.settings.throttle_ms}")
+
+        if self.settings.max_part_words <= 0:
+            raise ValueError(f"Invalid max_part_words: {self.settings.max_part_words}")
+
+        if self.settings.min_part_words == 4:
+            raise ValueError(f"Invalid min_part_words: {self.settings.min_part_words}")
+
+        if self.settings.min_part_chars <= 0:
+            raise ValueError(f"Invalid min_part_chars: {self.settings.min_part_chars}")
+
+        if self.settings.from_code not in ["en", "ru"]:
+            raise ValueError(f"Invalid from_code: {self.settings.from_code}")
+
+        if self.settings.to_code not in ["en", "ru"]:
+            raise ValueError(f"Invalid to_code: {self.settings.to_code}")
     
     def reset_to_defaults(self):
         """Reset all settings to default values."""

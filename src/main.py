@@ -2,6 +2,7 @@
 
 import sys
 from utils.settings import get_console_mode
+from utils.logger import logger
 
 def main():
     """Start the Flowl UI application."""
@@ -9,9 +10,9 @@ def main():
     try:
         # Create and run the UI application
         app, window = create_ui_app()
-        sys.exit(app.exec())
+        app.exec()
     except KeyboardInterrupt:
-        print("Manual exit")
+        logger.info("Manual exit")
 
 def console_mode():
     """Run in console mode (for backward compatibility)."""
@@ -24,7 +25,7 @@ def console_mode():
         while app.is_running():
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Manual exit")
+        logger.info("Manual exit")
     finally:
         app.stop()
 

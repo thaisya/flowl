@@ -1,15 +1,17 @@
 """Basic PySide6 UI with sliding text window for Flowl translation."""
 
-from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QTextEdit, QPushButton
+from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QTextEdit, QPushButton, QTabWidget
 from PySide6.QtCore import Qt, QTimer, Signal, QThread
 from PySide6.QtGui import QFont, QTextCursor
 
 from app import FlowlApp
 from .settings_tab import SettingsTab
+from utils.logger import logger
 
 class SlidingTextWindow(QMainWindow):
     # Define signals for thread-safe communication
     translation_received = Signal(str, dict)  # event_type, data
+    log_received = Signal(str, dict)
     
     def __init__(self):
         super().__init__()
@@ -32,17 +34,47 @@ class SlidingTextWindow(QMainWindow):
         settings_button.clicked.connect(self.open_settings)
         layout.addWidget(settings_button)
 
-        # Text display area
+        # Create tab widget
+        tab_widget = QTabWidget()
+        layout.addWidget(tab_widget)
+
+        # Translation tab
+        translation_widget = QWidget()
+        translation_layout = QVBoxLayout(translation_widget)
+        
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
         self.text_display.setFont(QFont("Arial", 12))
         self.text_display.setPlaceholderText("Translation results will appear here...")
-        layout.addWidget(self.text_display)
+        translation_layout.addWidget(self.text_display)
         
-        # Connect signal to slot for thread-safe updates
+        tab_widget.addTab(translation_widget, "Translations")
+
+        # Log tab
+        log_widget = QWidget()
+        log_layout = QVBoxLayout(log_widget)
+        
+        self.log_display = QTextEdit()
+        self.log_display.setReadOnly(True)
+        self.log_display.setFont(QFont("Courier New", 10))  # Monospace font for logs
+        self.log_display.setPlaceholderText("Log information will appear here...")
+        log_layout.addWidget(self.log_display)
+        
+        # Clear logs button
+        clear_logs_button = QPushButton("Clear Logs")
+        clear_logs_button.clicked.connect(self.clear_logs)
+        log_layout.addWidget(clear_logs_button)
+        
+        tab_widget.addTab(log_widget, "Logs")
+
+        # Connect signals to slot for thread-safe updates
         self.translation_received.connect(self.update_text)
+        self.log_received.connect(self.update_log)
         
-        # Initialize FlowlApp with our callback
+        # Set up the global logger to use our UI callback
+        logger.set_ui_callback(self.on_log_event, self)
+        
+        # Initialize FlowlApp with our callbacks
         self.app = FlowlApp(ui_callback=self.on_translation_event)
         
         # Start the app
@@ -52,18 +84,35 @@ class SlidingTextWindow(QMainWindow):
         """Handle translation events from FlowlApp (called from worker thread)."""
         # Emit signal to update UI in main thread
         self.translation_received.emit(event_type, data)
-        
+    
+    def on_log_event(self, level: str, message: str):
+        """Handle log events from FlowlApp (called from worker thread)."""
+        log_data = {
+            'message': message,
+            'level': level
+        }
+        # Emit signal to update UI in main thread
+        self.log_received.emit("log", log_data)
+         
     def update_text(self, event_type: str, data: dict):
         """Update the text display (runs in main thread)."""
         original = data.get('original', '')
         translated = data.get('translated', '')
         
         if event_type == "final" or event_type == "partial":
-            # Just replace the entire text - true sliding effect
             self.text_display.setText(f"{original} → {translated}")
-            
-        # Auto-scroll to bottom
         self.text_display.moveCursor(QTextCursor.End)
+
+    def update_log(self, event_type: str, data: dict):
+        """Update the log display (runs in main thread)."""
+        log_message = data.get('message', '')
+        
+        self.log_display.append(log_message)
+        self.log_display.moveCursor(QTextCursor.End)
+    
+    def clear_logs(self):
+        """Clear the log display."""
+        self.log_display.clear()
 
     def open_settings(self):
         """Open the settings window."""
@@ -75,9 +124,14 @@ class SlidingTextWindow(QMainWindow):
     def restart_app(self):
         try:
             self.app.restart()
-            self.text_display.append("🔁 App restarted with new settings")
+            logger.info("App restarted with new settings", "UI")
         except Exception as e:
-            self.text_display.append(f"❌ Error restarting app: {e}")
+            logger.error(f"Error restarting app: {e}", "UI")
+
+    def closeEvent(self, event):
+        """Handle window close event with proper cleanup."""
+        self.app.stop()
+        event.accept()
 
 def create_ui_app():
     """Create and return the UI application."""
