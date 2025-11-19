@@ -12,8 +12,17 @@ class SettingsTab:
         self.page = page
         self._on_saved = on_saved
         self.settings = SettingsManager.load_from_file()
-        self._create_controls()
-        self._create_dialog()
+        try:
+            print("Initializing SettingsTab controls...")
+            self._create_controls()
+            print("Initializing SettingsTab dialog...")
+            self._create_dialog()
+            print("SettingsTab initialized successfully")
+        except Exception as e:
+            print(f"Error initializing SettingsTab: {e}")
+            import traceback
+            traceback.print_exc()
+            self._show_error("Initialization Error", str(e))
     
     def _create_controls(self):
         """Create all form controls."""
@@ -108,7 +117,14 @@ class SettingsTab:
         )
         
         # Device settings
-        device_dict = devices_query()
+        print("Querying devices...")
+        try:
+            device_dict = devices_query()
+            print(f"Found {len(device_dict)} devices")
+        except Exception as e:
+            print(f"Error querying devices: {e}")
+            device_dict = {}
+        
         device_options = []
         name_counts = {}
 
@@ -372,11 +388,10 @@ class SettingsTab:
     
     def _close_dialog(self, e):
         """Close the settings dialog."""
-        self.page.dialog.open = False
+        self.page.close(self.dialog)
         self.page.update()
     
     def show(self):
         """Show the settings dialog."""
-        self.page.dialog = self.dialog
-        self.dialog.open = True
+        self.page.open(self.dialog)
         self.page.update()

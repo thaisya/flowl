@@ -25,13 +25,15 @@ class SlidingTextWindow:
         self._update_queue = queue.Queue()
         
         # Translation display
-        self.translation_display = ft.TextField(
-            read_only=True,
-            multiline=True,
-            min_lines=10,
-            max_lines=20,
-            expand=True,
-            hint_text="Translation results will appear here...",
+        self.translation_display_before = ft.Text(
+            size=20,
+            opacity=0.5,
+            text_align=ft.TextAlign.CENTER,
+        )
+
+        self.translation_display_after = ft.Text(
+            size=60,
+            text_align=ft.TextAlign.CENTER,
         )
         
         # Log display
@@ -51,7 +53,16 @@ class SlidingTextWindow:
         translation_tab = ft.Tab(
             text="Translations",
             content=ft.Container(
-                content=self.translation_display,
+                content=ft.Column(
+                    controls=[
+                        self.translation_display_before,
+                        self.translation_display_after,
+                    ],
+                    expand=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=0,
+                ),  
                 padding=10,
                 expand=True,
             ),
@@ -106,55 +117,30 @@ class SlidingTextWindow:
         self.app.start()
     
     def _start_update_processor(self):
-        """Start processing queued updates on main thread."""
-        # Create a hidden control that we'll update to trigger processing
-        self._update_counter = 0
-        self._update_trigger = ft.TextField(
-            value="0",
-            width=0,
-            height=0,
-            opacity=0,
-            visible=False,
-        )
-        self.page.add(self._update_trigger)
-        
-        def process_updates(e=None):
-            """Process queued updates - runs on main thread via control event."""
-            try:
+        """Start processing queued updates on background thread."""
+        def update_loop():
+            while True:
                 # Process all queued updates
+                updated = False
                 while True:
                     try:
                         update_func = self._update_queue.get_nowait()
                         update_func()
+                        updated = True
                     except queue.Empty:
                         break
                 
-                # Update the page
-                self.page.update()
-            except Exception:
-                pass  # Silently fail to prevent recursion
-        
-        # Set up the trigger control's on_change
-        self._update_trigger.on_change = process_updates
-        
-        # Background thread to trigger updates when queue has items
-        def trigger_loop():
-            while True:
-                if not self._update_queue.empty():
-                    # Toggle value to trigger on_change (runs on main thread)
-                    self._update_counter += 1
-                    new_value = str(self._update_counter % 2)
-                    # Directly set value - this will trigger on_change on main thread
+                if updated:
                     try:
-                        self._update_trigger.value = new_value
-                        # Note: We can't call page.update() from background thread
-                        # The on_change handler will call it
-                    except:
+                        self.page.update()
+                    except Exception:
                         pass
-                threading.Event().wait(0.05)  # Check every 50ms
+                
+                time.sleep(0.05)  # Check every 50ms
         
-        trigger_thread = threading.Thread(target=trigger_loop, daemon=True)
-        trigger_thread.start()
+        import time
+        update_thread = threading.Thread(target=update_loop, daemon=True)
+        update_thread.start()
     
     def on_translation_event(self, event_type: str, data: dict):
         """Handle translation events from FlowlApp (called from worker thread)."""
@@ -172,7 +158,8 @@ class SlidingTextWindow:
         translated = data.get('translated', '')
         
         if event_type == "final" or event_type == "partial":
-            self.translation_display.value = f"{original} → {translated}"
+            self.translation_display_before.value = f"{original}"
+            self.translation_display_after.value = f"{translated}"
     
     def _update_log(self, level: str, message: str):
         """Update the log display."""
