@@ -1,77 +1,96 @@
-"""Basic PySide6 UI with sliding text window for Flowl translation."""
+"""Flet-based UI with sliding text window for Flowl translation."""
 
-from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QTextEdit, QPushButton, QTabWidget
-from PySide6.QtCore import Qt, QTimer, Signal, QThread
-from PySide6.QtGui import QFont, QTextCursor
+import flet as ft
+import queue
+import threading
 
 from app import FlowlApp
 from .settings_tab import SettingsTab
 from utils.settings import SettingsManager
 from utils.logger import logger
 
-class SlidingTextWindow(QMainWindow):
-    # Define signals for thread-safe communication
-    translation_received = Signal(str, dict)  # event_type, data
-    log_received = Signal(str, dict)
+
+class SlidingTextWindow:
+    """Main UI window using Flet framework."""
     
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Flowl Translation")
-        self.setGeometry(200, 200, 600, 400)
+    def __init__(self, page: ft.Page):
+        self.page = page
+        self.page.title = "Flowl Translation"
+        self.page.window.width = 600
+        self.page.window.height = 400
+        self.page.window.left = 200
+        self.page.window.top = 200
         
-        # Create central widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
+        # Queue for thread-safe UI updates from worker threads
+        self._update_queue = queue.Queue()
         
-        # Title label
-        title = QLabel("Real-time Translation")
-        title.setAlignment(Qt.AlignCenter)
-        title.setFont(QFont("Arial", 16, QFont.Bold))
-        layout.addWidget(title)
+        # Translation display
+        self.translation_display = ft.TextField(
+            read_only=True,
+            multiline=True,
+            min_lines=10,
+            max_lines=20,
+            expand=True,
+            hint_text="Translation results will appear here...",
+        )
         
-        # Open settings window button
-        settings_button = QPushButton("Open Settings")
-        settings_button.clicked.connect(self.open_settings)
-        layout.addWidget(settings_button)
-
-        # Create tab widget
-        tab_widget = QTabWidget()
-        layout.addWidget(tab_widget)
-
-        # Translation tab
-        translation_widget = QWidget()
-        translation_layout = QVBoxLayout(translation_widget)
+        # Log display
+        self.log_display = ft.Column(
+            controls=[],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+        )
         
-        self.text_display = QTextEdit()
-        self.text_display.setReadOnly(True)
-        self.text_display.setFont(QFont("Arial", 12))
-        self.text_display.setPlaceholderText("Translation results will appear here...")
-        translation_layout.addWidget(self.text_display)
+        # Settings button
+        settings_button = ft.ElevatedButton(
+            "Open Settings",
+            on_click=self.open_settings,
+        )
         
-        tab_widget.addTab(translation_widget, "Translations")
-
-        # Log tab
-        log_widget = QWidget()
-        log_layout = QVBoxLayout(log_widget)
+        # Create tabs
+        translation_tab = ft.Tab(
+            text="Translations",
+            content=ft.Container(
+                content=self.translation_display,
+                padding=10,
+                expand=True,
+            ),
+        )
         
-        self.log_display = QTextEdit()
-        self.log_display.setReadOnly(True)
-        self.log_display.setFont(QFont("Courier New", 10))  # Monospace font for logs
-        self.log_display.setPlaceholderText("Log information will appear here...")
-        self.log_display.setAcceptRichText(True)  # Enable HTML formatting
-        log_layout.addWidget(self.log_display)
+        log_tab = ft.Tab(
+            text="Logs",
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        self.log_display,
+                        ft.ElevatedButton(
+                            "Clear Logs",
+                            on_click=self.clear_logs,
+                        ),
+                    ],
+                    expand=True,
+                ),
+                padding=10,
+                expand=True,
+            ),
+        )
         
-        # Clear logs button
-        clear_logs_button = QPushButton("Clear Logs")
-        clear_logs_button.clicked.connect(self.clear_logs)
-        log_layout.addWidget(clear_logs_button)
+        tabs = ft.Tabs(
+            tabs=[translation_tab, log_tab],
+            expand=True,
+        )
         
-        tab_widget.addTab(log_widget, "Logs")
-
-        # Connect signals to slot for thread-safe updates
-        self.translation_received.connect(self.update_text)
-        self.log_received.connect(self.update_log)
+        # Main layout
+        self.page.add(
+            ft.Text(
+                "Real-time Translation",
+                size=20,
+                weight=ft.FontWeight.BOLD,
+                text_align=ft.TextAlign.CENTER,
+            ),
+            settings_button,
+            tabs,
+        )
         
         # Set up the global logger to use our UI callback
         logger.set_ui_callback(self.on_log_event, self)
@@ -80,81 +99,155 @@ class SlidingTextWindow(QMainWindow):
         settings = SettingsManager.load_from_file()
         self.app = FlowlApp(ui_callback=self.on_translation_event, settings=settings)
         
+        # Start update processor
+        self._start_update_processor()
+        
         # Start the app
         self.app.start()
+    
+    def _start_update_processor(self):
+        """Start processing queued updates on main thread."""
+        # Create a hidden control that we'll update to trigger processing
+        self._update_counter = 0
+        self._update_trigger = ft.TextField(
+            value="0",
+            width=0,
+            height=0,
+            opacity=0,
+            visible=False,
+        )
+        self.page.add(self._update_trigger)
         
+        def process_updates(e=None):
+            """Process queued updates - runs on main thread via control event."""
+            try:
+                # Process all queued updates
+                while True:
+                    try:
+                        update_func = self._update_queue.get_nowait()
+                        update_func()
+                    except queue.Empty:
+                        break
+                
+                # Update the page
+                self.page.update()
+            except Exception:
+                pass  # Silently fail to prevent recursion
+        
+        # Set up the trigger control's on_change
+        self._update_trigger.on_change = process_updates
+        
+        # Background thread to trigger updates when queue has items
+        def trigger_loop():
+            while True:
+                if not self._update_queue.empty():
+                    # Toggle value to trigger on_change (runs on main thread)
+                    self._update_counter += 1
+                    new_value = str(self._update_counter % 2)
+                    # Schedule update on main thread
+                    try:
+                        # Use page's update method to schedule the change
+                        self.page.run_task(lambda: self._set_trigger_value(new_value))
+                    except AttributeError:
+                        # Fallback if run_task doesn't exist
+                        try:
+                            self._update_trigger.value = new_value
+                            self.page.update()
+                        except:
+                            pass
+                threading.Event().wait(0.05)  # Check every 50ms
+        
+        trigger_thread = threading.Thread(target=trigger_loop, daemon=True)
+        trigger_thread.start()
+    
+    def _set_trigger_value(self, value):
+        """Set trigger value on main thread."""
+        self._update_trigger.value = value
+        self.page.update()
+    
     def on_translation_event(self, event_type: str, data: dict):
         """Handle translation events from FlowlApp (called from worker thread)."""
-        # Emit signal to update UI in main thread
-        self.translation_received.emit(event_type, data)
+        # Queue the update
+        self._update_queue.put(lambda: self._update_translation(event_type, data))
     
     def on_log_event(self, level: str, message: str):
         """Handle log events from FlowlApp (called from worker thread)."""
-        log_data = {
-            'message': message,
-            'level': level
-        }
-        # Emit signal to update UI in main thread
-        self.log_received.emit("log", log_data)
-         
-    def update_text(self, event_type: str, data: dict):
-        """Update the text display (runs in main thread)."""
+        # Queue the update
+        self._update_queue.put(lambda: self._update_log(level, message))
+    
+    def _update_translation(self, event_type: str, data: dict):
+        """Update the translation display."""
         original = data.get('original', '')
         translated = data.get('translated', '')
         
         if event_type == "final" or event_type == "partial":
-            self.text_display.setText(f"{original} → {translated}")
-        self.text_display.moveCursor(QTextCursor.End)
-
-    def update_log(self, event_type: str, data: dict):
-        """Update the log display (runs in main thread)."""
-        log_message = data.get('message', '')
-        log_level = data.get('level', 'INFO')
-        
-        # Set color based on log level
-        if log_level == "ERROR":
-            color = "#DC143C"  # Crimson Red
-        elif log_level == "WARNING":
-            color = "#FF8C00"  # Dark Orange
-        elif log_level == "INFO":
-            color = "#0066CC"  # Blue
-        elif log_level == "DEBUG":
-            color = "#696969"  # Dim Gray
-        else:
-            color = "#000000"  # Black (default)
-        
-        # Format message with color
-        colored_message = f'<span style="color: {color};">{log_message}</span>'
-        
-        # Append to log display with HTML formatting
-        self.log_display.append(colored_message)
+            self.translation_display.value = f"{original} → {translated}"
     
-    def clear_logs(self):
+    def _update_log(self, level: str, message: str):
+        """Update the log display."""
+        # Set color based on log level
+        color_map = {
+            "ERROR": "#DC143C",    # Crimson Red
+            "WARNING": "#FF8C00",  # Dark Orange
+            "INFO": "#0066CC",     # Blue
+            "DEBUG": "#696969",    # Dim Gray
+        }
+        color = color_map.get(level, "#000000")
+        
+        # Create colored text widget
+        log_text = ft.Text(
+            message,
+            color=color,
+            size=12,
+            selectable=True,
+        )
+        
+        # Add to log display
+        self.log_display.controls.append(log_text)
+        
+        # Limit log entries to prevent memory issues
+        if len(self.log_display.controls) > 1000:
+            self.log_display.controls.pop(0)
+    
+    def clear_logs(self, e):
         """Clear the log display."""
-        self.log_display.clear()
-
-    def open_settings(self):
-        """Open the settings window."""
+        self.log_display.controls.clear()
+        self.page.update()
+    
+    def open_settings(self, e):
+        """Open the settings dialog."""
         def on_saved():
             self.restart_app()
-        dlg = SettingsTab(on_saved)
-        dlg.exec()
-
+        
+        # Create and show settings dialog
+        settings_dialog = SettingsTab(self.page, on_saved)
+        settings_dialog.show()
+    
     def restart_app(self):
+        """Restart the app with new settings."""
         try:
             self.app.restart()
             logger.info("App restarted with new settings", "UI")
         except Exception as e:
             logger.error(f"Error restarting app: {e}", "UI")
-
-    def closeEvent(self, event):
+    
+    def close_app(self):
         """Handle window close event with proper cleanup."""
         self.app.stop()
-        event.accept()
+
+
+def main(page: ft.Page):
+    """Main entry point for Flet app."""
+    window = SlidingTextWindow(page)
+    
+    # Handle window close
+    def on_window_event(e):
+        if e.data == "close":
+            window.close_app()
+    
+    page.window.on_event = on_window_event
+
 
 def create_ui_app():
     """Create and return the UI application."""
-    app = QApplication([])
-    window = SlidingTextWindow()
-    window.show()
-    return app, window
+    return main
