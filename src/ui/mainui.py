@@ -144,26 +144,17 @@ class SlidingTextWindow:
                     # Toggle value to trigger on_change (runs on main thread)
                     self._update_counter += 1
                     new_value = str(self._update_counter % 2)
-                    # Schedule update on main thread
+                    # Directly set value - this will trigger on_change on main thread
                     try:
-                        # Use page's update method to schedule the change
-                        self.page.run_task(lambda: self._set_trigger_value(new_value))
-                    except AttributeError:
-                        # Fallback if run_task doesn't exist
-                        try:
-                            self._update_trigger.value = new_value
-                            self.page.update()
-                        except:
-                            pass
+                        self._update_trigger.value = new_value
+                        # Note: We can't call page.update() from background thread
+                        # The on_change handler will call it
+                    except:
+                        pass
                 threading.Event().wait(0.05)  # Check every 50ms
         
         trigger_thread = threading.Thread(target=trigger_loop, daemon=True)
         trigger_thread.start()
-    
-    def _set_trigger_value(self, value):
-        """Set trigger value on main thread."""
-        self._update_trigger.value = value
-        self.page.update()
     
     def on_translation_event(self, event_type: str, data: dict):
         """Handle translation events from FlowlApp (called from worker thread)."""
