@@ -50,18 +50,22 @@ class ASRWorker(threading.Thread):
 
     def run(self) -> None:
         while True:
-            try:
-                with self._audio_lock:
-                    if not self._audio_q:
-                        time.sleep(0.001)
-                        continue
+            should_sleep = False
+            data = None
+
+            with self._audio_lock:
+                if not self._audio_q:
+                    should_sleep = True
+                else:
                     data = self._audio_q.popleft()
-                    if data is None:
-                        logger.info("ASR worker exiting", "ASR")
-                        break
-            except IndexError:
-                time.sleep(0.001)
+
+            if should_sleep:
+                time.sleep(0.01)  # Sleep 10ms to save CPU
                 continue
+
+            if data is None:
+                logger.info("ASR worker exiting", "ASR")
+                break
 
             try:
                 if self._rec.AcceptWaveform(data):
@@ -168,14 +172,18 @@ class MTWorker(threading.Thread):
 
     def run(self) -> None:
         while True:
-            try:
-                with self._events_lock:
-                    if not self._events_q:
-                        time.sleep(0.001)
-                        continue
+            should_sleep = False
+            text_type = None
+            text = None
+
+            with self._events_lock:
+                if not self._events_q:
+                    should_sleep = True
+                else:
                     text_type, text = self._events_q.popleft()
-            except IndexError:
-                time.sleep(0.001)
+
+            if should_sleep:
+                time.sleep(0.01)  # Sleep 10ms to save CPU
                 continue
 
             if text_type == "final":

@@ -60,6 +60,7 @@ class SlidingTextWindow(QMainWindow):
         self.log_display.setFont(QFont("Courier New", 10))  # Monospace font for logs
         self.log_display.setPlaceholderText("Log information will appear here...")
         self.log_display.setAcceptRichText(True)  # Enable HTML formatting
+        self.log_display.document().setMaximumBlockCount(1000)  # Limit log buffer to prevent memory leaks
         log_layout.addWidget(self.log_display)
         
         # Clear logs button
