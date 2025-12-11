@@ -34,7 +34,11 @@ class FlowlApp:
         
         # Initialize device manager and find device
         self.device_manager = DeviceManager(self.settings)
-        device_index = self.device_manager.startup()
+        try:
+            device_index = self.device_manager.startup()
+        except RuntimeError as e:
+            logger.error(f"Audio init failed: {e}", "APP")
+            device_index = None
 
         self.audio_engine = AudioEngine(
             on_audio=self._on_audio, 

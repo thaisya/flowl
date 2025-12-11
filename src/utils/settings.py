@@ -30,8 +30,11 @@ class SettingsManager:
     @property
     def model_path(self) -> str:
         """Get the ASR model path based on from_code."""
-        base_path = r"C:\Users\nikit\Desktop\Flowl_necessary_files"
-        return f"{base_path}\\vosk-en" if self.from_code == "en" else f"{base_path}\\vosk-ru"
+        # Use a relative path 'models' in the current working directory,
+        # or fallback to an environment variable if set.
+        base_path = os.getenv("FLOWL_MODELS_PATH", os.path.join(os.getcwd(), "models"))
+        suffix = "vosk-en" if self.from_code == "en" else "vosk-ru"
+        return os.path.join(base_path, suffix)
     
     @property
     def mt_model_path(self) -> str:

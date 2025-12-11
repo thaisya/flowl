@@ -22,13 +22,15 @@ class ASRWorker(threading.Thread):
         self._events_lock = events_lock
 
     def generate_final_result(self, data: bytes) -> None:
-            res = json.loads(self._rec.Result())
-            final_text = res.get("text", "").strip()
+        if not data:
+            return
+        res = json.loads(self._rec.Result())
+        final_text = res.get("text", "").strip()
 
-            if final_text:
-                with self._events_lock:
-                    self._events_q.append(("final", final_text))
-            self._prev_partial = ""
+        if final_text:
+            with self._events_lock:
+                self._events_q.append(("final", final_text))
+        self._prev_partial = ""
 
     def generate_partial_result(self, data: bytes) -> None:
         now = time.time() * 1000
@@ -101,7 +103,8 @@ class MTWorker(threading.Thread):
                 final_text_sliced = text
                 partial_text_sliced = self._last_shown_partial
         except (IndexError, ValueError):
-            pass
+            final_text_sliced = text
+            partial_text_sliced = self._last_shown_partial
 
         if final_text_sliced != partial_text_sliced and len(final_text_sliced) >= self.settings.min_part_chars:
             try:

@@ -8,6 +8,7 @@ from app import FlowlApp
 from .settings_tab import SettingsTab
 from utils.settings import SettingsManager
 from utils.logger import logger
+from _version import __version__
 
 class SlidingTextWindow(QMainWindow):
     # Define signals for thread-safe communication
@@ -16,7 +17,7 @@ class SlidingTextWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Flowl Translation")
+        self.setWindowTitle(f"Flowl Translation v{__version__}")
         self.setGeometry(200, 200, 600, 400)
         
         # Create central widget

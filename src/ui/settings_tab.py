@@ -320,7 +320,7 @@ class SettingsTab(QDialog):
         if self.settings.max_part_words <= 0:
             raise ValueError(f"Invalid max_part_words: {self.settings.max_part_words}")
 
-        if self.settings.min_part_words == 4:
+        if self.settings.min_part_words <= 0:
             raise ValueError(f"Invalid min_part_words: {self.settings.min_part_words}")
 
         if self.settings.min_part_chars <= 0:

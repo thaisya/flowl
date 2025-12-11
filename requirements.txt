@@ -1,0 +1,6 @@
+PySide6
+sounddevice
+numpy
+vosk
+transformers
+torch
