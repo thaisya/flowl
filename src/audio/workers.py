@@ -10,24 +10,25 @@ from utils.logger import logger
 
 
 class ASRWorker(threading.Thread):
-    def __init__(self, audio_q: deque, events_q: deque, recognizer, audio_lock: threading.Lock, events_lock: threading.Lock, settings):
+    def __init__(self, audio_q: deque, events_q: deque, recognizer, audio_cond: threading.Condition, events_cond: threading.Condition, settings):
         super().__init__(daemon=True)
         self._audio_q = audio_q
         self._events_q = events_q
         self._rec = recognizer
         self._prev_partial = ""
         self._last_partial_time = 0.0
-        self._audio_lock = audio_lock
+        self._audio_cond = audio_cond
         self.settings = settings
-        self._events_lock = events_lock
+        self._events_cond = events_cond
 
     def generate_final_result(self, data: bytes) -> None:
             res = json.loads(self._rec.Result())
             final_text = res.get("text", "").strip()
 
             if final_text:
-                with self._events_lock:
+                with self._events_cond:
                     self._events_q.append(("final", final_text))
+                    self._events_cond.notify()
             self._prev_partial = ""
 
     def generate_partial_result(self, data: bytes) -> None:
@@ -43,27 +44,24 @@ class ASRWorker(threading.Thread):
         if not partial_text or partial_text == self._prev_partial or (len(partial_text) < self.settings.min_part_chars and len(partial_text.split()) < self.settings.min_part_words):
             return
 
-        with self._events_lock:
+        with self._events_cond:
             self._events_q.append(("partial", partial_text))
+            self._events_cond.notify()
         self._prev_partial = partial_text
 
 
     def run(self) -> None:
         while True:
             try:
-                with self._audio_lock:
-                    if not self._audio_q:
-                        time.sleep(0.001)
-                        continue
+                with self._audio_cond:
+                    while not self._audio_q:
+                        self._audio_cond.wait()
                     data = self._audio_q.popleft()
-                    if data is None:
-                        logger.info("ASR worker exiting", "ASR")
-                        break
-            except IndexError:
-                time.sleep(0.001)
-                continue
 
-            try:
+                if data is None:
+                    logger.info("ASR worker exiting", "ASR")
+                    break
+
                 if self._rec.AcceptWaveform(data):
                     self.generate_final_result(data)
                 else:
@@ -73,11 +71,11 @@ class ASRWorker(threading.Thread):
 
 
 class MTWorker(threading.Thread):
-    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Lock, ui_callback=None, settings=None):
+    def __init__(self, events_q: deque, translate_fn, events_cond: threading.Condition, ui_callback=None, settings=None):
         super().__init__(daemon=True)
         self._events_q = events_q
         self._translate = translate_fn
-        self._events_lock = events_lock
+        self._events_cond = events_cond
         self._last_emit_time = 0.0
         self._last_shown_partial = ""
         self._ui_callback = ui_callback  # Callback for UI updates
@@ -169,23 +167,21 @@ class MTWorker(threading.Thread):
     def run(self) -> None:
         while True:
             try:
-                with self._events_lock:
-                    if not self._events_q:
-                        time.sleep(0.001)
-                        continue
+                with self._events_cond:
+                    while not self._events_q:
+                        self._events_cond.wait()
                     text_type, text = self._events_q.popleft()
-            except IndexError:
-                time.sleep(0.001)
-                continue
 
-            if text_type == "final":
-                if text is None:
-                    logger.info("MT worker exiting", "MT")
-                    break
-                self.output_final_result(text)
+                if text_type == "final":
+                    if text is None:
+                        logger.info("MT worker exiting", "MT")
+                        break
+                    self.output_final_result(text)
 
-            elif text_type == "partial":
-                self.output_partial_result(text)
+                elif text_type == "partial":
+                    self.output_partial_result(text)
+            except Exception as e:
+                logger.error(f"MT ERROR: {e}", "MT")
 
 
             
