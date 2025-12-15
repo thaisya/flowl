@@ -24,8 +24,8 @@ class FlowlApp:
         self.settings = settings or SettingsManager.load_from_file()
         
         # Create locks for thread-safe queue operations
-        self._audio_lock = threading.Lock()
-        self._events_lock = threading.Lock()
+        self._audio_cond = threading.Condition()
+        self._events_cond = threading.Condition()
         self._ui_callback = ui_callback  # Store UI callback
         self.build_components()
 
@@ -46,15 +46,16 @@ class FlowlApp:
             logger.info(f"Created audio engine (device: {device_index}) "
                        f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
 
-        self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_lock, self._events_lock, self.settings)
-        self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock, self._ui_callback, self.settings)
+        self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_cond, self._events_cond, self.settings)
+        self.mt = MTWorker(self.events_q, self.models.translate, self._events_cond, self._ui_callback, self.settings)
 
 
     def _on_audio(self, in_data: bytes) -> None:
         """Callback for audio data."""
         # deque with maxlen automatically handles overflow by removing the oldest items
-        with self._audio_lock:
+        with self._audio_cond:
             self.audio_q.append(in_data)
+            self._audio_cond.notify()
     
     def start(self) -> None:
         # Start audio engine if available
@@ -94,14 +95,16 @@ class FlowlApp:
         
         # Signal threads to stop by sending sentinel values
         try:
-            with self._audio_lock:
+            with self._audio_cond:
                 self.audio_q.append(None)
+                self._audio_cond.notify()
         except Exception as e:
             logger.warning(f"Error sending audio sentinel: {e}")
             
         try:
-            with self._events_lock:
+            with self._events_cond:
                 self.events_q.append(("final", None))  # MTWorker exits on this sentinel
+                self._events_cond.notify()
         except Exception as e:
             logger.warning(f"Error sending events sentinel: {e}")
         
