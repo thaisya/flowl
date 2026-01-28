@@ -24,8 +24,8 @@ class FlowlApp:
         self.settings = settings or SettingsManager.load_from_file()
         
         # Create locks for thread-safe queue operations
-        self._audio_lock = threading.Lock()
-        self._events_lock = threading.Lock()
+        self._audio_lock = threading.Condition()
+        self._events_lock = threading.Condition()
         self._ui_callback = ui_callback  # Store UI callback
         self.build_components()
 
@@ -55,6 +55,7 @@ class FlowlApp:
         # deque with maxlen automatically handles overflow by removing the oldest items
         with self._audio_lock:
             self.audio_q.append(in_data)
+            self._audio_lock.notify()
     
     def start(self) -> None:
         # Start audio engine if available
@@ -96,12 +97,14 @@ class FlowlApp:
         try:
             with self._audio_lock:
                 self.audio_q.append(None)
+                self._audio_lock.notify()
         except Exception as e:
             logger.warning(f"Error sending audio sentinel: {e}")
             
         try:
             with self._events_lock:
                 self.events_q.append(("final", None))  # MTWorker exits on this sentinel
+                self._events_lock.notify()
         except Exception as e:
             logger.warning(f"Error sending events sentinel: {e}")
         

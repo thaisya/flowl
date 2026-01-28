@@ -28,6 +28,7 @@ class ASRWorker(threading.Thread):
             if final_text:
                 with self._events_lock:
                     self._events_q.append(("final", final_text))
+                    self._events_lock.notify()
             self._prev_partial = ""
 
     def generate_partial_result(self, data: bytes) -> None:
@@ -45,6 +46,7 @@ class ASRWorker(threading.Thread):
 
         with self._events_lock:
             self._events_q.append(("partial", partial_text))
+            self._events_lock.notify()
         self._prev_partial = partial_text
 
 
@@ -52,15 +54,15 @@ class ASRWorker(threading.Thread):
         while True:
             try:
                 with self._audio_lock:
-                    if not self._audio_q:
-                        time.sleep(0.001)
-                        continue
+                    while not self._audio_q:
+                        self._audio_lock.wait()
                     data = self._audio_q.popleft()
-                    if data is None:
-                        logger.info("ASR worker exiting", "ASR")
-                        break
+
+                if data is None:
+                    logger.info("ASR worker exiting", "ASR")
+                    break
             except IndexError:
-                time.sleep(0.001)
+                # This shouldn't happen with correct Condition logic, but good for safety
                 continue
 
             try:
@@ -170,12 +172,10 @@ class MTWorker(threading.Thread):
         while True:
             try:
                 with self._events_lock:
-                    if not self._events_q:
-                        time.sleep(0.001)
-                        continue
+                    while not self._events_q:
+                        self._events_lock.wait()
                     text_type, text = self._events_q.popleft()
             except IndexError:
-                time.sleep(0.001)
                 continue
 
             if text_type == "final":
