@@ -3,229 +3,185 @@
 import flet as ft
 import queue
 import threading
+import time
+import subprocess
+import sys
+import keyboard
 
 from app import FlowlApp
 from .settings_tab import SettingsTab
 from utils.settings import SettingsManager
 from utils.logger import logger
 
+from .components.overlay_window import OverlayWindow
+
 
 class SlidingTextWindow:
-    """Main UI window using Flet framework."""
+    """Main UI window utilizing the Blueprint Overlay components."""
     
     def __init__(self, page: ft.Page):
         self.page = page
-        self.page.title = "Flowl Translation"
-        self.page.window.width = 600
-        self.page.window.height = 400
-        self.page.window.left = 200
-        self.page.window.top = 200
+        self.page.title = "Flowl Overlay"
         
-        # Queue for thread-safe UI updates from worker threads
+        self.page.window.width = 1000
+        self.page.window.height = 350
+        self.page.window.bgcolor = ft.Colors.TRANSPARENT
+        self.page.bgcolor = ft.Colors.TRANSPARENT
+        self.page.window.frameless = True
+        self.page.window.title_bar_hidden = True
+        self.page.window.title_bar_buttons_hidden = True
+        self.page.window.always_on_top = True
+        self.page.window.center()
+        
         self._update_queue = queue.Queue()
-        
-        # Translation display
-        self.translation_display_before = ft.Text(
-            size=20,
-            opacity=0.5,
-            text_align=ft.TextAlign.CENTER,
-        )
 
-        self.translation_display_after = ft.Text(
-            size=60,
-            text_align=ft.TextAlign.CENTER,
+        self.settings = SettingsManager.load_from_file()
+        
+        self.overlay = OverlayWindow(
+            page, 
+            self.settings, 
+            on_settings_req=self.open_settings,
+            on_close_req=self.close_app_req,
+            on_restart_req=self.restart_app
         )
         
-        # Log display
-        self.log_display = ft.Column(
-            controls=[],
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-        )
+        self.page.add(self.overlay)
         
-        # Settings button
-        settings_button = ft.ElevatedButton(
-            "Open Settings",
-            on_click=self.open_settings,
-        )
+        self.app = FlowlApp(ui_callback=self.on_translation_event, settings=self.settings)
         
-        # Create tabs
-        translation_tab = ft.Tab(
-            text="Translations",
-            content=ft.Container(
-                content=ft.Column(
-                    controls=[
-                        self.translation_display_before,
-                        self.translation_display_after,
-                    ],
-                    expand=True,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=0,
-                ),  
-                padding=10,
-                expand=True,
-            ),
-        )
-        
-        log_tab = ft.Tab(
-            text="Logs",
-            content=ft.Container(
-                content=ft.Column(
-                    controls=[
-                        self.log_display,
-                        ft.ElevatedButton(
-                            "Clear Logs",
-                            on_click=self.clear_logs,
-                        ),
-                    ],
-                    expand=True,
-                ),
-                padding=10,
-                expand=True,
-            ),
-        )
-        
-        tabs = ft.Tabs(
-            tabs=[translation_tab, log_tab],
-            expand=True,
-        )
-        
-        # Main layout
-        self.page.add(
-            ft.Text(
-                "Real-time Translation",
-                size=20,
-                weight=ft.FontWeight.BOLD,
-                text_align=ft.TextAlign.CENTER,
-            ),
-            settings_button,
-            tabs,
-        )
-        
-        # Set up the global logger to use our UI callback
-        logger.set_ui_callback(self.on_log_event, self)
-        
-        # Load settings and initialize FlowlApp with our callbacks
-        settings = SettingsManager.load_from_file()
-        self.app = FlowlApp(ui_callback=self.on_translation_event, settings=settings)
-        
-        # Start update processor
         self._start_update_processor()
         
-        # Start the app
+        keyboard.add_hotkey('ctrl+alt+l', self.toggle_global_lock)
+        
         self.app.start()
-    
+
     def _start_update_processor(self):
         """Start processing queued updates on background thread."""
         def update_loop():
             while True:
-                # Process all queued updates
-                updated = False
-                while True:
-                    try:
-                        update_func = self._update_queue.get_nowait()
-                        update_func()
-                        updated = True
-                    except queue.Empty:
-                        break
-                
-                if updated:
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
-                
-                time.sleep(0.05)  # Check every 50ms
+                try:
+                    updates_batch = []
+                    # We running this loop to get all the updates that are in the queue
+                    while True:
+                        try:
+                            item = self._update_queue.get_nowait()
+                            updates_batch.append(item)
+                        except queue.Empty:
+                            break
+                    
+                    if updates_batch:
+                        latest_trans = None
+                        
+                        # Process batch
+                        for event_type, data in updates_batch:
+                            # We only care about the LATEST translation event ?? TODO: Check this
+                            if event_type in ["final", "partial"]:
+                                latest_trans = (event_type, data)
+                            elif event_type == "lambda":
+                                # Execute generic lambdas immediately
+                                try:
+                                    data() 
+                                except Exception as e:
+                                    print(f"Error executing lambda update: {e}")
+
+                        # Apply latest translation update once
+                        if latest_trans:
+                            try:
+                                self._handle_trans_update(*latest_trans)
+                            except Exception as e:
+                                print(f"Error updating translation UI: {e}")
+                                
+                except Exception as e:
+                    print(f"CRITICAL Update Loop Error: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                time.sleep(0.033) # Cap at ~30 FPS
         
-        import time
         update_thread = threading.Thread(target=update_loop, daemon=True)
         update_thread.start()
-    
-    def on_translation_event(self, event_type: str, data: dict):
-        """Handle translation events from FlowlApp (called from worker thread)."""
-        # Queue the update
-        self._update_queue.put(lambda: self._update_translation(event_type, data))
-    
-    def on_log_event(self, level: str, message: str):
-        """Handle log events from FlowlApp (called from worker thread)."""
-        # Queue the update
-        self._update_queue.put(lambda: self._update_log(level, message))
-    
-    def _update_translation(self, event_type: str, data: dict):
-        """Update the translation display."""
-        original = data.get('original', '')
-        translated = data.get('translated', '')
-        
-        if event_type == "final" or event_type == "partial":
-            self.translation_display_before.value = f"{original}"
-            self.translation_display_after.value = f"{translated}"
-    
-    def _update_log(self, level: str, message: str):
-        """Update the log display."""
-        # Set color based on log level
-        color_map = {
-            "ERROR": "#DC143C",    # Crimson Red
-            "WARNING": "#FF8C00",  # Dark Orange
-            "INFO": "#0066CC",     # Blue
-            "DEBUG": "#696969",    # Dim Gray
-        }
-        color = color_map.get(level, "#000000")
-        
-        # Create colored text widget
-        log_text = ft.Text(
-            message,
-            color=color,
-            size=12,
-            selectable=True,
-        )
-        
-        # Add to log display
-        self.log_display.controls.append(log_text)
-        
-        # Limit log entries to prevent memory issues
-        if len(self.log_display.controls) > 1000:
-            self.log_display.controls.pop(0)
-    
-    def clear_logs(self, e):
-        """Clear the log display."""
-        self.log_display.controls.clear()
+
+    def toggle_global_lock(self):
+        """Toggle the global lock state using a hotkey."""
+        new_state = not self.overlay.is_locked
+        self.overlay.is_locked = new_state
+        self.overlay.control_bar.set_lock_indicator(new_state)
+        self.page.window.ignore_mouse_events = new_state
         self.page.update()
     
+    def on_translation_event(self, event_type: str, data: dict):
+        """Handle translation events from FlowlApp."""
+        # We push data tuples instead of lambdas now to allow inspection/batching
+        self._update_queue.put((event_type, data))
+
+    def _handle_trans_update(self, event_type: str, data: dict):
+        if event_type in ["final", "partial"]:
+            original = data.get('original', '')
+            translated = data.get('translated', '')
+            is_final = (event_type == "final")
+            try:
+                self.overlay.update_translation(original, translated, is_final=is_final)
+            except Exception as e:
+                print(f"Overlay update failed: {e}")
+
     def open_settings(self, e):
-        """Open the settings dialog."""
-        def on_saved():
-            self.restart_app()
+        """Open the settings in a completely separate native OS window."""
         
-        # Create and show settings dialog
-        settings_dialog = SettingsTab(self.page, on_saved)
-        settings_dialog.show()
+        def run_settings_process():
+            # Show loading/spinning indicator on main GUI if desired, but we'll leave it as is.
+            try:
+                # Launch the settings tab as a distinct Python process
+                process = subprocess.Popen(
+                    [sys.executable, "src/ui/settings_tab.py"],
+                    cwd="." # Assuming we are always running from project root
+                )
+                
+                # Wait for the user to close the settings window
+                exit_code = process.wait()
+                
+                # Exit code 0 means "Save" was clicked and config.json updated
+                if exit_code == 0:
+                    self.restart_app()
+            except Exception as e:
+                print(f"Error launching settings process: {e}")
+                
+        # Launch the waiting process in a background thread so we don't block the UI
+        threading.Thread(target=run_settings_process, daemon=True).start()
     
     def restart_app(self):
-        """Restart the app with new settings."""
-        try:
-            self.app.restart()
-            logger.info("App restarted with new settings", "UI")
-        except Exception as e:
-            logger.error(f"Error restarting app: {e}", "UI")
-    
+        if hasattr(self, 'app') and self.app:
+            self.overlay.show_loading(True)
+            self.page.update()
+            
+            def _do_restart():
+                self.app.restart()
+                self.overlay.show_loading(False)
+                
+                if self.page:
+                    self.page.update()
+                    
+            threading.Thread(target=_do_restart, daemon=True).start()
+        else:
+            print("WARNING: restart_app called but app is not initialized.")
+
+    def close_app_req(self, e):
+        """User requested close via UI button."""
+        self.close_app()
+        self.page.window.close()
+
     def close_app(self):
-        """Handle window close event with proper cleanup."""
-        self.app.stop()
+        """Handle cleanup."""
+        try:
+            keyboard.unhook_all()
+        except Exception:
+            pass
+        if self.app:
+            self.app.stop()
 
 
 def main(page: ft.Page):
     """Main entry point for Flet app."""
     window = SlidingTextWindow(page)
-    
-    # Handle window close
-    def on_window_event(e):
-        if e.data == "close":
-            window.close_app()
-    
-    page.window.on_event = on_window_event
-
 
 def create_ui_app():
-    """Create and return the UI application."""
     return main

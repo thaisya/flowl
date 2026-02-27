@@ -1,22 +1,27 @@
 """Flet-based settings dialog for Flowl application."""
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import flet as ft
 from utils.settings import SettingsManager
 from utils.device_manager import devices_query
+from typing import Callable
 
 
 class SettingsTab:
-    """Settings dialog using Flet AlertDialog."""
-    
-    def __init__(self, page: ft.Page, on_saved):
+    """Manages the settings tab UI and logic."""
+    def __init__(self, page: ft.Page, on_saved: Callable[[], None] = None, on_close: Callable[[], None] = None):
         self.page = page
-        self._on_saved = on_saved
         self.settings = SettingsManager.load_from_file()
+        self._on_saved = on_saved
+        self._on_close_callback = on_close
+        
         try:
             print("Initializing SettingsTab controls...")
             self._create_controls()
-            print("Initializing SettingsTab dialog...")
-            self._create_dialog()
+            self.content = self._create_content()
             print("SettingsTab initialized successfully")
         except Exception as e:
             print(f"Error initializing SettingsTab: {e}")
@@ -104,15 +109,15 @@ class SettingsTab:
             width=300,
         )
         
-        self.asr_model_label = ft.Text(
+        self.asr_model_label = ft.TextField(
+            label="ASR Model Path",
             value=self.settings.model_path,
-            selectable=True,
             width=400,
         )
         
-        self.mt_model_label = ft.Text(
+        self.mt_model_label = ft.TextField(
+            label="MT Model Path",
             value=self.settings.mt_model_path,
-            selectable=True,
             width=400,
         )
         
@@ -189,19 +194,9 @@ class SettingsTab:
                         self.from_lang_dropdown,
                         self.to_lang_dropdown,
                         ft.Divider(),
-                        ft.Text("Model Paths (Auto-generated)", size=16, weight=ft.FontWeight.BOLD),
-                        ft.Row(
-                            controls=[
-                                ft.Text("ASR Model:", width=150),
-                                self.asr_model_label,
-                            ],
-                        ),
-                        ft.Row(
-                            controls=[
-                                ft.Text("MT Model:", width=150),
-                                self.mt_model_label,
-                            ],
-                        ),
+                        ft.Text("Model Paths", size=16, weight=ft.FontWeight.BOLD),
+                        self.asr_model_label,
+                        self.mt_model_label,
                     ],
                     scroll=ft.ScrollMode.AUTO,
                     spacing=10,
@@ -245,24 +240,7 @@ class SettingsTab:
         return ft.Tabs(
             tabs=[audio_tab, language_tab, device_tab, advanced_tab],
             expand=True,
-        )
-    
-    def _create_dialog(self):
-        """Create the settings dialog."""
-        self.dialog = ft.AlertDialog(
-            title=ft.Text("Flowl Settings"),
-            content=ft.Container(
-                content=self._create_content(),
-                width=600,
-                height=500,
-                padding=10,
-            ),
-            actions=[
-                ft.TextButton("Reset to Defaults", on_click=self.reset_to_defaults),
-                ft.TextButton("Cancel", on_click=self._close_dialog),
-                ft.ElevatedButton("Save", on_click=self.save_settings),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
+            scrollable=False,
         )
     
     def _get_config_info(self) -> str:
@@ -325,6 +303,11 @@ class SettingsTab:
             self.settings.from_code = self.from_lang_dropdown.value
             self.settings.to_code = self.to_lang_dropdown.value
             
+            # Update paths dictionaries with custom user input
+            self.settings.asr_model_paths[self.settings.from_code] = self.asr_model_label.value
+            pair = f"{self.settings.from_code}-{self.settings.to_code}"
+            self.settings.mt_model_paths[pair] = self.mt_model_label.value
+            
             # Device settings
             if self.device_dropdown.value:
                 self.settings.device_index = int(self.device_dropdown.value)
@@ -341,8 +324,9 @@ class SettingsTab:
 
             # Save settings to file
             self.settings.save_to_file()
-            self._on_saved()
-            self._close_dialog(e)
+            if self._on_saved:
+                self._on_saved()
+            self._close_actions()
             
         except ValueError as ve:
             self._show_error("Invalid Settings", str(ve))
@@ -386,12 +370,56 @@ class SettingsTab:
         error_dialog.open = True
         self.page.update()
     
-    def _close_dialog(self, e):
-        """Close the settings dialog."""
-        self.page.close(self.dialog)
-        self.page.update()
+    def _close_actions(self, e=None):
+        if self._on_close_callback:
+            self._on_close_callback()
+            
+            
+if __name__ == "__main__":
+    import sys
     
-    def show(self):
-        """Show the settings dialog."""
-        self.page.open(self.dialog)
-        self.page.update()
+    def main(page: ft.Page):
+        page.title = "Flowl Settings"
+        page.window.width = 600
+        page.window.height = 550
+        page.window.center()
+        
+        def on_save_success():
+            # Exit 0 means user saved successfully
+            page.window.destroy()
+            sys.exit(0)
+            
+        def on_close():
+            # Exit 1 means user canceled
+            page.window.destroy()
+            sys.exit(1)
+            
+        settings_app = SettingsTab(page, on_saved=on_save_success, on_close=on_close)
+        
+        # Build the standalone UI container
+        page.add(
+            ft.Column(
+                [
+                    ft.Row(
+                        [ft.Text("Flowl Settings", size=24, weight=ft.FontWeight.BOLD)],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    ft.Container(
+                        content=settings_app.content,
+                        expand=True,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.TextButton("Reset", on_click=settings_app.reset_to_defaults),
+                            ft.TextButton("Cancel", on_click=settings_app._close_actions),
+                            ft.ElevatedButton("Save", on_click=settings_app.save_settings),
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                    )
+                ],
+                expand=True
+            )
+        )
+        page.update()
+        
+    ft.app(target=main)
