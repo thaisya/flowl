@@ -187,7 +187,19 @@ class ControlBar(ft.Container):
 
         # Configure Container properties
         self.padding = 5
-        self.bgcolor = ft.Colors.with_opacity(0.5, ft.Colors.GREY_900)
+        
+        darker_map = {
+            "WHITE": ft.Colors.GREY_300,
+            "BLACK": ft.Colors.GREY_900,
+            "RED": ft.Colors.RED_900,
+            "GREEN": ft.Colors.GREEN_900,
+            "BLUE": ft.Colors.BLUE_900,
+            "YELLOW": ft.Colors.YELLOW_900,
+            "CYAN": ft.Colors.CYAN_900,
+            "MAGENTA": ft.Colors.PURPLE_900
+        }
+        darker = darker_map.get(current_bg_color, ft.Colors.GREY_900)
+        self.bgcolor = ft.Colors.with_opacity(min(1.0, settings.opacity + 0.3), darker)
 
         self.content = ft.Row(
             controls=[

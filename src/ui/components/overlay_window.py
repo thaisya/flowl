@@ -66,16 +66,33 @@ class OverlayWindow(ft.Container):
         self.settings.font_size = size
         self.settings.save_to_file()
         self.subtitle_display.set_font_size(size)
+        self.update()
 
     def _on_opacity_change(self, opacity):
         self.settings.opacity = opacity
         self.settings.save_to_file()
         self.subtitle_display.set_opacity(opacity)
 
+        darker_map = {
+            "WHITE": ft.Colors.GREY_300,
+            "BLACK": ft.Colors.GREY_900,
+            "RED": ft.Colors.RED_900,
+            "GREEN": ft.Colors.GREEN_900,
+            "BLUE": ft.Colors.BLUE_900,
+            "YELLOW": ft.Colors.YELLOW_900,
+            "CYAN": ft.Colors.CYAN_900,
+            "MAGENTA": ft.Colors.PURPLE_900
+        }
+        darker = darker_map.get(self.settings.bg_color, ft.Colors.GREY_900)
+        self.control_bar.bgcolor = ft.Colors.with_opacity(min(1.0, self.settings.opacity + 0.3), darker)
+        if self.page:
+            self.update()
+
     def _on_font_color_change(self, color):
         self.settings.font_color = color
         self.settings.save_to_file()
         self.subtitle_display.set_font_color(color)
+        self.update()
 
     def _on_bg_color_change(self, color):
         self.settings.bg_color = color
@@ -93,9 +110,9 @@ class OverlayWindow(ft.Container):
             "MAGENTA": ft.Colors.PURPLE_900
         }
         darker = darker_map.get(color, ft.Colors.GREY_900)
-        self.control_bar.bgcolor = ft.Colors.with_opacity(0.8, darker)
-        if self.control_bar.page:
-            self.control_bar.update()
+        self.control_bar.bgcolor = ft.Colors.with_opacity(min(1.0, self.settings.opacity + 0.3), darker)
+        if self.page:
+            self.update()
 
     def _on_language_change(self, from_code, to_code):
         self.settings.from_code = from_code
