@@ -10,7 +10,7 @@ from utils.logger import logger
 
 
 class ASRWorker(threading.Thread):
-    def __init__(self, audio_q: deque, events_q: deque, recognizer, audio_lock: threading.Lock, events_lock: threading.Lock, settings):
+    def __init__(self, audio_q: deque, events_q: deque, recognizer, audio_lock: threading.Condition, events_lock: threading.Condition, settings):
         super().__init__(daemon=True)
         self._audio_q = audio_q
         self._events_q = events_q
@@ -75,7 +75,7 @@ class ASRWorker(threading.Thread):
 
 
 class MTWorker(threading.Thread):
-    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Lock, ui_callback=None, settings=None):
+    def __init__(self, events_q: deque, translate_fn, events_lock: threading.Condition, ui_callback=None, settings=None):
         super().__init__(daemon=True)
         self._events_q = events_q
         self._translate = translate_fn

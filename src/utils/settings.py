@@ -2,7 +2,7 @@
 
 import json
 import os
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from utils.logger import logger
 
 
@@ -21,28 +21,45 @@ class SettingsManager:
     # Language configuration
     from_code: str = "en"
     to_code: str = "ru"
+    aviable_langs: tuple = ("en", "ru")
     
     # Device settings
     device_index: int = None
     device_name: str = None
     
+    # UI configuration
+    font_size: int = 24
+    opacity: float = 0.3
+    font_color: str = "WHITE"
+    bg_color: str = "BLACK"
+    show_original: bool = True
+    text_alignment: str = "CENTER"
+    
+    # Keybind configuration
+    lock_hotkey: str = "ctrl+alt+l"
+    
+    # Model configuration
+    asr_model_paths: dict = field(default_factory=lambda: {
+        "en": r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-en",
+        "ru": r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-ru"
+    })
+    
+    mt_model_paths: dict = field(default_factory=lambda: {
+        "en-ru": "Helsinki-NLP/opus-mt-en-ru",
+        "ru-en": "Helsinki-NLP/opus-mt-ru-en"
+    })
+    
     # Model paths (computed properties)
     @property
     def model_path(self) -> str:
         """Get the ASR model path based on from_code."""
-        base_path = r"C:\Users\nikit\Desktop\Flowl_necessary_files"
-        return f"{base_path}\\vosk-en" if self.from_code == "en" else f"{base_path}\\vosk-ru"
+        return self.asr_model_paths.get(self.from_code, "")
     
     @property
     def mt_model_path(self) -> str:
         """Get the MT model path based on from_code and to_code."""
-        if self.from_code == "en" and self.to_code == "ru":
-            return "Helsinki-NLP/opus-mt-en-ru"
-        elif self.from_code == "ru" and self.to_code == "en":
-            return "Helsinki-NLP/opus-mt-ru-en"
-        else:
-            # Default fallback
-            return "Helsinki-NLP/opus-mt-en-ru"
+        pair = f"{self.from_code}-{self.to_code}"
+        return self.mt_model_paths.get(pair, "Helsinki-NLP/opus-mt-en-ru")
 
     
     def save_to_file(self, filepath: str = "config.json") -> None:

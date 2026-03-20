@@ -1,18 +1,15 @@
 """Application entry point for Flowl real-time translator."""
 
-import sys
-from utils.settings import SettingsManager
+import flet as ft
 from utils.logger import logger
 
-def main():
+def main(page: ft.Page):
     """Start the Flowl UI application."""
-    from ui import create_ui_app
+    from ui.mainui import main as ui_main
     try:
-        # Create and run the UI application
-        app, window = create_ui_app()
-        app.exec()
+        ui_main(page)
     except KeyboardInterrupt:
         logger.info("Manual exit")
 
 if __name__ == "__main__":
-    main()
+    ft.app(target=main)

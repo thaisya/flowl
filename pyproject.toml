@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "flowl"
+version = "0.1.0"
+description = "Advanced Overlay Natural Language Processing Real-Time Speech Translator"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "thaisya", email = "nikitapetruchekk@gmail.com" }
+]
+keywords = ["speech", "translation", "overlay", "NLP", "real-time", "ASR", "flet"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Other Environment",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "flet>=0.28.3",
+    "sounddevice>=0.5.2",
+    "vosk>=0.3.45",
+    "transformers>=4.56.1",
+    "torch>=2.8.0",
+    "numpy>=2.3.2",
+    "keyboard>=0.13.5",
+    "huggingface-hub>=0.34.4",
+    "sentencepiece>=0.2.1",
+    "sacremoses>=0.1.1",
+    "safetensors>=0.6.2",
+    "tokenizers>=0.22.0",
+]
+
+[project.scripts]
+flowl = "main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.urls]
+Repository = "https://github.com/thaisya/flowl"
