@@ -33,6 +33,10 @@ class SettingsManager:
     font_color: str = "WHITE"
     bg_color: str = "BLACK"
     show_original: bool = True
+    text_alignment: str = "CENTER"
+    
+    # Keybind configuration
+    lock_hotkey: str = "ctrl+alt+l"
     
     # Model configuration
     asr_model_paths: dict = field(default_factory=lambda: {

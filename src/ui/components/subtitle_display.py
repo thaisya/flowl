@@ -1,4 +1,5 @@
 import flet as ft
+from utils.logger import logger
 
 class SubtitleDisplay(ft.Container):
     """
@@ -43,11 +44,10 @@ class SubtitleDisplay(ft.Container):
             visible=False,
         )
 
-        self.padding = 20
+        self.padding = ft.padding.only(top=65, bottom=20, left=20, right=20)
         self.bgcolor = ft.Colors.with_opacity(self.settings.opacity, self.settings.bg_color)
         self.expand = False
-        self.alignment = ft.alignment.center_left
-
+        self.alignment = None
         self.border_radius = 10
         self.content = ft.Column(
             controls=[
@@ -59,6 +59,7 @@ class SubtitleDisplay(ft.Container):
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.START,
             spacing=5,
+            tight=True,
         )
 
     def update_text(self, original: str, translated: str):
@@ -68,7 +69,7 @@ class SubtitleDisplay(ft.Container):
         if self.page:
             self.update()
         else:
-            print("SubtitleDisplay: Skipped update (detached from page)")
+            logger.error("SubtitleDisplay: Skipped update (detached from page)")
 
     def set_loading(self, is_loading: bool):
         """Toggle the loading state UI."""
@@ -78,12 +79,10 @@ class SubtitleDisplay(ft.Container):
         if is_loading:
             self.text_before_translation.visible = False
             self.text_after_translation.visible = False
-            self.alignment = ft.alignment.center
             self.content.horizontal_alignment = ft.CrossAxisAlignment.CENTER
         else:
             self.text_before_translation.visible = self.settings.show_original
             self.text_after_translation.visible = True
-            self.alignment = ft.alignment.center_left
             self.content.horizontal_alignment = ft.CrossAxisAlignment.START
             
         if self.page:
@@ -106,6 +105,8 @@ class SubtitleDisplay(ft.Container):
         """Update the font color."""
         self.text_before_translation.color = color
         self.text_after_translation.color = color
+        self.loading_ring.color = color
+        self.loading_text.color = color
         if self.page:
             self.update()
 

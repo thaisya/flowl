@@ -4,7 +4,8 @@ class ControlBar(ft.Container):
     """
     Floating toolbar for window controls.
     """
-    def __init__(self, page: ft.Page, settings, on_settings_click, on_close, on_minimize, on_lock_toggle, on_font_size_change, on_opacity_change, on_font_color_change, on_bg_color_change, on_language_change, on_show_original_change, current_font_size=24, current_opacity=0.3, current_font_color="WHITE", current_bg_color="BLACK", current_from_code="en", current_to_code="ru", current_show_original=True):
+    AVAILABLE_COLORS = ["WHITE", "BLACK", "RED", "GREEN", "BLUE", "YELLOW", "CYAN", "MAGENTA"]
+    def __init__(self, page: ft.Page, settings, on_settings_click, on_close, on_minimize, on_lock_toggle, on_font_size_change, on_opacity_change, on_font_color_change, on_bg_color_change, on_language_change, on_show_original_change, on_logger_toggle, on_text_alignment_change, current_font_size=24, current_opacity=0.3, current_font_color="WHITE", current_bg_color="BLACK", current_from_code="en", current_to_code="ru", current_show_original=True, current_text_alignment="CENTER"):
         super().__init__()
         self.page = page
         self.settings = settings
@@ -18,15 +19,17 @@ class ControlBar(ft.Container):
         self._on_font_color_change = on_font_color_change
         self._on_bg_color_change = on_bg_color_change
         self._on_show_original_change = on_show_original_change
+        self._on_text_alignment_change_cb = on_text_alignment_change
         self.is_locked = False
 
         self.current_from_code = current_from_code
         self.current_to_code = current_to_code
+        self.current_text_alignment = current_text_alignment
 
         self.lock_btn = ft.IconButton(
             icon=ft.Icons.LOCK_OPEN,
             icon_color=ft.Colors.WHITE54,
-            tooltip="Unlocked (Press Ctrl+Alt+L to lock)",
+            tooltip=f"Unlocked (Press {self.settings.lock_hotkey} to lock)",
         )
         
         self.flags = {
@@ -129,7 +132,7 @@ class ControlBar(ft.Container):
                                         width=20, height=20, border_radius=10, bgcolor=color,
                                         border=ft.border.all(2, ft.Colors.GREY_400) if current_font_color == color else None,
                                         on_click=lambda e, c=color: self._on_font_color_change(c)
-                                    ) for color in ["WHITE", "BLACK", "RED", "GREEN", "BLUE", "YELLOW", "CYAN", "MAGENTA"]
+                                    ) for color in self.AVAILABLE_COLORS
                                 ],
                                 wrap=True,
                                 spacing=5,
@@ -152,7 +155,7 @@ class ControlBar(ft.Container):
                                         width=20, height=20, border_radius=10, bgcolor=color,
                                         border=ft.border.all(2, ft.Colors.GREY_400) if current_bg_color == color else None,
                                         on_click=lambda e, c=color: self._on_bg_color_change(c)
-                                    ) for color in ["WHITE", "BLACK", "RED", "GREEN", "BLUE", "YELLOW", "CYAN", "MAGENTA"]
+                                    ) for color in self.AVAILABLE_COLORS
                                 ],
                                 wrap=True,
                                 spacing=5,
@@ -163,12 +166,36 @@ class ControlBar(ft.Container):
                     ),
                     disabled=True
                 ),
+                ft.PopupMenuItem(content=ft.Divider(), height=10, disabled=True),
+                
+                # Text Alignment Grid
+                ft.PopupMenuItem(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("Text Alignment", size=12, color=ft.Colors.BLACK),
+                            ft.Column(
+                                controls=self._build_alignment_grid(),
+                                spacing=0
+                            )
+                        ],
+                        spacing=5
+                    ),
+                    disabled=True
+                ),
+                
                 ft.PopupMenuItem(content=ft.Divider(), height=10, disabled=True), # Divider
                 ft.PopupMenuItem(
                     text="Advanced Settings", 
                     on_click=lambda e: self._on_settings_click(e)
                 ),
             ]
+        )
+
+        logger_btn = ft.IconButton(
+            icon=ft.Icons.RECEIPT_LONG,
+            icon_color=ft.Colors.WHITE,
+            tooltip="Show/Hide Logs",
+            on_click=on_logger_toggle
         )
 
         minimize_btn = ft.IconButton(
@@ -185,21 +212,19 @@ class ControlBar(ft.Container):
             on_click=self._on_close
         )
 
-        # Configure Container properties
         self.padding = 5
         
         darker_map = {
-            "WHITE": ft.Colors.GREY_300,
-            "BLACK": ft.Colors.GREY_900,
-            "RED": ft.Colors.RED_900,
-            "GREEN": ft.Colors.GREEN_900,
-            "BLUE": ft.Colors.BLUE_900,
-            "YELLOW": ft.Colors.YELLOW_900,
-            "CYAN": ft.Colors.CYAN_900,
-            "MAGENTA": ft.Colors.PURPLE_900
+            color: shade for color, shade in zip(self.AVAILABLE_COLORS, [
+                ft.Colors.GREY_300, ft.Colors.GREY_900,
+                ft.Colors.RED_900, ft.Colors.GREEN_900,
+                ft.Colors.BLUE_900, ft.Colors.YELLOW_900,
+                ft.Colors.CYAN_900, ft.Colors.PURPLE_900
+            ])
         }
         darker = darker_map.get(current_bg_color, ft.Colors.GREY_900)
         self.bgcolor = ft.Colors.with_opacity(min(1.0, settings.opacity + 0.3), darker)
+        self.border_radius = ft.border_radius.only(top_left=10, top_right=10)
 
         self.content = ft.Row(
             controls=[
@@ -207,7 +232,6 @@ class ControlBar(ft.Container):
                 ft.Container(
                     content=self.lock_btn,
                     alignment=ft.alignment.center_left,
-                    expand=1
                 ),
                 # Center: Language Selector (Explicitly centered)
                 ft.Container(
@@ -219,26 +243,28 @@ class ControlBar(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
+                            logger_btn,
                             self.settings_btn,
                             minimize_btn,
                             close_btn,
                         ],
                         spacing=0,
-                        alignment=ft.MainAxisAlignment.END
+                        alignment=ft.MainAxisAlignment.END,
+                        tight=True
                     ),
                     alignment=ft.alignment.center_right,
-                    expand=1
-                )
+                ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             spacing=0,
         )
 
     def set_lock_indicator(self, is_locked):
+        """Update the lock button state and disable/enable controls."""
         self.is_locked = is_locked
         if self.is_locked:
             self.lock_btn.icon = ft.Icons.LOCK
-            self.lock_btn.tooltip = "Locked (Press Ctrl+Alt+L to unlock)"
+            self.lock_btn.tooltip = f"Locked (Press {self.settings.lock_hotkey} to unlock)"
             self.lock_btn.icon_color = ft.Colors.RED_400
             self.settings_btn.disabled = True
             
@@ -254,7 +280,7 @@ class ControlBar(ft.Container):
             self.swap_btn.icon_color = ft.Colors.GREY
         else:
             self.lock_btn.icon = ft.Icons.LOCK_OPEN
-            self.lock_btn.tooltip = "Unlocked (Press Ctrl+Alt+L to lock)"
+            self.lock_btn.tooltip = f"Unlocked (Press {self.settings.lock_hotkey} to lock)"
             self.lock_btn.icon_color = ft.Colors.WHITE54
             self.settings_btn.disabled = False
             
@@ -318,5 +344,52 @@ class ControlBar(ft.Container):
         
         if self.page:
             self.update()
+
+    def _build_alignment_grid(self):
+        self.align_btns = []
+        
+        def _get_btn(icon, align_str):
+            btn = ft.IconButton(
+                icon=icon,
+                icon_size=18,
+                icon_color=ft.Colors.BLUE if self.current_text_alignment == align_str else ft.Colors.GREY_700,
+                on_click=lambda e, a=align_str: self._handle_alignment_change(a),
+                width=35, height=35
+            )
+            self.align_btns.append((btn, align_str))
+            return btn
+
+        return [
+            ft.Row(
+                controls=[
+                    _get_btn(ft.Icons.NORTH_WEST, "TOP_LEFT"),
+                    _get_btn(ft.Icons.NORTH, "TOP_CENTER"),
+                    _get_btn(ft.Icons.NORTH_EAST, "TOP_RIGHT"),
+                ], spacing=0
+            ),
+            ft.Row(
+                controls=[
+                    _get_btn(ft.Icons.WEST, "CENTER_LEFT"),
+                    _get_btn(ft.Icons.FILTER_CENTER_FOCUS, "CENTER"),
+                    _get_btn(ft.Icons.EAST, "CENTER_RIGHT"),
+                ], spacing=0
+            ),
+            ft.Row(
+                controls=[
+                    _get_btn(ft.Icons.SOUTH_WEST, "BOTTOM_LEFT"),
+                    _get_btn(ft.Icons.SOUTH, "BOTTOM_CENTER"),
+                    _get_btn(ft.Icons.SOUTH_EAST, "BOTTOM_RIGHT"),
+                ], spacing=0
+            )
+        ]
+
+    def _handle_alignment_change(self, alignment: str):
+        self.current_text_alignment = alignment
+        for btn, a_str in self.align_btns:
+            btn.icon_color = ft.Colors.BLUE if alignment == a_str else ft.Colors.GREY_700
+        if self.page:
+            self.update()
+        if self._on_text_alignment_change_cb:
+            self._on_text_alignment_change_cb(alignment)
 
 

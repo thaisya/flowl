@@ -7,6 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import flet as ft
 from utils.settings import SettingsManager
 from utils.device_manager import devices_query
+from utils.logger import logger
 from typing import Callable
 
 
@@ -19,12 +20,12 @@ class SettingsTab:
         self._on_close_callback = on_close
         
         try:
-            print("Initializing SettingsTab controls...")
+            logger.info("Initializing SettingsTab controls...")
             self._create_controls()
             self.content = self._create_content()
-            print("SettingsTab initialized successfully")
+            logger.info("SettingsTab initialized successfully")
         except Exception as e:
-            print(f"Error initializing SettingsTab: {e}")
+            logger.error(f"Error initializing SettingsTab: {e}")
             import traceback
             traceback.print_exc()
             self._show_error("Initialization Error", str(e))
@@ -122,12 +123,12 @@ class SettingsTab:
         )
         
         # Device settings
-        print("Querying devices...")
+        logger.info("Querying devices...")
         try:
             device_dict = devices_query()
-            print(f"Found {len(device_dict)} devices")
+            logger.info(f"Found {len(device_dict)} devices")
         except Exception as e:
-            print(f"Error querying devices: {e}")
+            logger.error(f"Error querying devices: {e}")
             device_dict = {}
         
         device_options = []
@@ -150,6 +151,14 @@ class SettingsTab:
             options=device_options,
             value=str(self.settings.device_index) if self.settings.device_index is not None else None,
             width=400,
+        )
+        
+        # Keybind settings
+        self.lock_hotkey_field = ft.TextField(
+            label="Lock Screen Hotkey",
+            value=self.settings.lock_hotkey,
+            hint_text="e.g. ctrl+alt+l",
+            width=300,
         )
         
         # Config info
@@ -227,6 +236,9 @@ class SettingsTab:
             content=ft.Container(
                 content=ft.Column(
                     controls=[
+                        ft.Text("Keybind Settings", size=16, weight=ft.FontWeight.BOLD),
+                        self.lock_hotkey_field,
+                        ft.Divider(),
                         ft.Text("Current Configuration", size=16, weight=ft.FontWeight.BOLD),
                         self.config_info,
                     ],
@@ -249,7 +261,8 @@ class SettingsTab:
         info += f"Frames: {self.settings.frames_per_buffer} | "
         info += f"Throttle: {self.settings.throttle_ms}ms | "
         info += f"Languages: {self.settings.from_code}→{self.settings.to_code} | "
-        info += f"Device: {self.settings.device_index if self.settings.device_index is not None else 'Auto'}"
+        info += f"Device: {self.settings.device_index if self.settings.device_index is not None else 'Auto'} | "
+        info += f"Lock Hotkey: {self.settings.lock_hotkey}"
         return info
     
     def _update_model_paths(self):
@@ -282,6 +295,8 @@ class SettingsTab:
         
         self.from_lang_dropdown.value = default_settings.from_code
         self.to_lang_dropdown.value = default_settings.to_code
+        
+        self.lock_hotkey_field.value = default_settings.lock_hotkey
         
         self.settings = default_settings
         self._update_model_paths()
@@ -319,6 +334,9 @@ class SettingsTab:
                 self.settings.device_index = None
                 self.settings.device_name = None
 
+            # Keybind settings
+            self.settings.lock_hotkey = self.lock_hotkey_field.value.strip()
+
             # Validate settings
             self._validate()
 
@@ -347,7 +365,7 @@ class SettingsTab:
         if self.settings.max_part_words <= 0:
             raise ValueError(f"Invalid max_part_words: {self.settings.max_part_words}")
 
-        if self.settings.min_part_words == 4:
+        if self.settings.min_part_words <= 0:
             raise ValueError(f"Invalid min_part_words: {self.settings.min_part_words}")
 
         if self.settings.min_part_chars <= 0:

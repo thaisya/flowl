@@ -7,6 +7,7 @@ import time
 import subprocess
 import sys
 import keyboard
+import traceback
 
 from app import FlowlApp
 from .settings_tab import SettingsTab
@@ -33,7 +34,12 @@ class SlidingTextWindow:
         self.page.window.always_on_top = True
         self.page.window.center()
         
+        self._prev_window_width = 1000
+        self._prev_window_height = 350
+        self.page.on_resized = self._on_page_resize
+        
         self._update_queue = queue.Queue()
+        self._shutdown = threading.Event()
 
         self.settings = SettingsManager.load_from_file()
         
@@ -51,14 +57,52 @@ class SlidingTextWindow:
         
         self._start_update_processor()
         
-        keyboard.add_hotkey('ctrl+alt+l', self.toggle_global_lock)
+        keyboard.add_hotkey(self.settings.lock_hotkey, self.toggle_global_lock)
         
         self.app.start()
+
+    def _on_page_resize(self, e):
+        """Ensure the logger stays within the screen bounds when the main window resizes."""
+        new_width = self.page.window.width
+        new_height = self.page.window.height
+        
+        logger_ui = self.overlay.logger_overlay
+        
+        if new_width and new_height:
+            TOP_MARGIN = 50
+            LEFT_MARGIN = 20
+            RIGHT_MARGIN = 20
+            BOTTOM_MARGIN = 20
+            # First clamp the anchors to ensure it doesn't stay off-screen
+            if logger_ui.right is not None:
+                max_right = max(RIGHT_MARGIN, new_width - logger_ui.box.width - LEFT_MARGIN)
+                logger_ui.right = max(RIGHT_MARGIN, min(logger_ui.right, max_right))
+                
+            if logger_ui.bottom is not None:
+                max_bottom = max(BOTTOM_MARGIN, new_height - logger_ui.box.height - TOP_MARGIN)
+                logger_ui.bottom = max(BOTTOM_MARGIN, min(logger_ui.bottom, max_bottom))
+
+            # Then clamp the size if the window shrunk below the logger's size
+            max_allowed_width = new_width - LEFT_MARGIN - (logger_ui.right if logger_ui.right is not None else RIGHT_MARGIN)
+            max_allowed_height = new_height - TOP_MARGIN - (logger_ui.bottom if logger_ui.bottom is not None else BOTTOM_MARGIN)
+            
+            if logger_ui.box.width > max_allowed_width:
+                logger_ui.box.width = max(200, max_allowed_width)
+            if logger_ui.box.height > max_allowed_height:
+                logger_ui.box.height = max(100, max_allowed_height)
+                
+            try:
+                logger_ui.update()
+            except Exception:
+                pass
+                
+        self._prev_window_width = new_width
+        self._prev_window_height = new_height
 
     def _start_update_processor(self):
         """Start processing queued updates on background thread."""
         def update_loop():
-            while True:
+            while not self._shutdown.is_set():
                 try:
                     updates_batch = []
                     # We running this loop to get all the updates that are in the queue
@@ -74,26 +118,27 @@ class SlidingTextWindow:
                         
                         # Process batch
                         for event_type, data in updates_batch:
-                            # We only care about the LATEST translation event ?? TODO: Check this
-                            if event_type in ["final", "partial"]:
+                            # We only care about the LATEST translation event
+                            if event_type == "final":
+                                self._handle_trans_update(event_type, data)
+                            elif event_type == "partial":
                                 latest_trans = (event_type, data)
                             elif event_type == "lambda":
                                 # Execute generic lambdas immediately
                                 try:
                                     data() 
                                 except Exception as e:
-                                    print(f"Error executing lambda update: {e}")
+                                    logger.error(f"Error executing lambda update: {e}")
 
                         # Apply latest translation update once
                         if latest_trans:
                             try:
                                 self._handle_trans_update(*latest_trans)
                             except Exception as e:
-                                print(f"Error updating translation UI: {e}")
+                                logger.error(f"Error updating translation UI: {e}")
                                 
                 except Exception as e:
-                    print(f"CRITICAL Update Loop Error: {e}")
-                    import traceback
+                    logger.critical(f"CRITICAL Update Loop Error: {e}")
                     traceback.print_exc()
 
                 time.sleep(0.033) # Cap at ~30 FPS
@@ -122,39 +167,65 @@ class SlidingTextWindow:
             try:
                 self.overlay.update_translation(original, translated, is_final=is_final)
             except Exception as e:
-                print(f"Overlay update failed: {e}")
+                logger.error(f"Overlay update failed: {e}")
 
     def open_settings(self, e):
-        """Open the settings in a completely separate native OS window."""
+        """Open the settings inside an overlay within the main window."""
         
-        def run_settings_process():
-            # Show loading/spinning indicator on main GUI if desired, but we'll leave it as is.
-            try:
-                # Launch the settings tab as a distinct Python process
-                process = subprocess.Popen(
-                    [sys.executable, "src/ui/settings_tab.py"],
-                    cwd="." # Assuming we are always running from project root
-                )
-                
-                # Wait for the user to close the settings window
-                exit_code = process.wait()
-                
-                # Exit code 0 means "Save" was clicked and config.json updated
-                if exit_code == 0:
-                    self.restart_app()
-            except Exception as e:
-                print(f"Error launching settings process: {e}")
-                
-        # Launch the waiting process in a background thread so we don't block the UI
-        threading.Thread(target=run_settings_process, daemon=True).start()
+        def on_saved():
+            self.overlay.hide_settings()
+            self.restart_app()
+            
+        def on_close():
+            self.overlay.hide_settings()
+            
+        settings_app = SettingsTab(self.page, on_saved=on_saved, on_close=on_close)
+        
+        # Build the container for the settings overlay
+        settings_content = ft.Container(
+            theme=ft.Theme(color_scheme_seed=ft.Colors.BLUE, visual_density=ft.VisualDensity.COMPACT),
+            theme_mode=ft.ThemeMode.LIGHT,
+            content=ft.Column(
+                [
+                    ft.Row(
+                        [ft.Text("Flowl Settings", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK)],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    ft.Container(
+                        content=settings_app.content,
+                        expand=True,
+                    ),
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.TextButton("Reset", on_click=settings_app.reset_to_defaults, style=ft.ButtonStyle(color=ft.Colors.BLACK)),
+                                ft.TextButton("Cancel", on_click=settings_app._close_actions, style=ft.ButtonStyle(color=ft.Colors.BLACK)),
+                                ft.ElevatedButton("Save", on_click=settings_app.save_settings),
+                            ],
+                            alignment=ft.MainAxisAlignment.END,
+                        ),
+                        padding=ft.padding.only(right=40),
+                    )
+                ],
+                expand=True
+            )
+        )
+
+        self.overlay.show_settings(settings_content)
     
     def restart_app(self):
-        if hasattr(self, 'app') and self.app:
+        if self.app:
             self.overlay.show_loading(True)
             self.page.update()
-            
+
             def _do_restart():
+                self.settings = SettingsManager.load_from_file()
                 self.app.restart()
+                
+                # Re-register hotkey with potentially new keybind
+                keyboard.unhook_all_hotkeys()
+                keyboard.add_hotkey(self.settings.lock_hotkey, self.toggle_global_lock)
+                
                 self.overlay.show_loading(False)
                 
                 if self.page:
@@ -162,7 +233,7 @@ class SlidingTextWindow:
                     
             threading.Thread(target=_do_restart, daemon=True).start()
         else:
-            print("WARNING: restart_app called but app is not initialized.")
+            logger.warning("restart_app called but app is not initialized.")
 
     def close_app_req(self, e):
         """User requested close via UI button."""
@@ -171,6 +242,7 @@ class SlidingTextWindow:
 
     def close_app(self):
         """Handle cleanup."""
+        self._shutdown.set()
         try:
             keyboard.unhook_all()
         except Exception:
