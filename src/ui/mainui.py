@@ -53,13 +53,23 @@ class SlidingTextWindow:
         
         self.page.add(self.overlay)
         
-        self.app = FlowlApp(ui_callback=self.on_translation_event, settings=self.settings)
+        self.app = None
+        self.overlay.show_loading(True)
+        self.page.update()
         
-        self._start_update_processor()
-        
-        keyboard.add_hotkey(self.settings.lock_hotkey, self.toggle_global_lock)
-        
-        self.app.start()
+        def _init_and_start_app():
+            self.app = FlowlApp(ui_callback=self.on_translation_event, settings=self.settings)
+            
+            self._start_update_processor()
+            
+            keyboard.add_hotkey(self.settings.lock_hotkey, self.toggle_global_lock)
+            
+            self.app.start()
+            self.overlay.show_loading(False)
+            if self.page:
+                self.page.update()
+                
+        threading.Thread(target=_init_and_start_app, daemon=True).start()
 
     def _on_page_resize(self, e):
         """Ensure the logger stays within the screen bounds when the main window resizes."""
@@ -179,7 +189,11 @@ class SlidingTextWindow:
         def on_close():
             self.overlay.hide_settings()
             
-        settings_app = SettingsTab(self.page, on_saved=on_saved, on_close=on_close)
+        active_idx = None
+        if self.app and self.app.audio_engine:
+            active_idx = self.app.audio_engine._input_device_index
+            
+        settings_app = SettingsTab(self.page, on_saved=on_saved, on_close=on_close, active_device_index=active_idx)
         
         # Build the container for the settings overlay
         settings_content = ft.Container(

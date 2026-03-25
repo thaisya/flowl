@@ -306,7 +306,15 @@ class OverlayWindow(ft.Container):
     def show_loading(self, is_loading: bool):
         """Show or hide the loading indicator."""
         self.is_loading = is_loading
+        
+        if is_loading:
+            self.subtitle_display.alignment = ft.alignment.center
+        else:
+            self.subtitle_display.alignment = self._get_flet_alignment(self.settings.text_alignment)
+            
         self.subtitle_display.set_loading(is_loading)
+        if self.page:
+            self.page.update()
 
     def show_settings(self, content):
         """Show the settings overlay with provided content."""

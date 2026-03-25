@@ -13,11 +13,12 @@ from typing import Callable
 
 class SettingsTab:
     """Manages the settings tab UI and logic."""
-    def __init__(self, page: ft.Page, on_saved: Callable[[], None] = None, on_close: Callable[[], None] = None):
+    def __init__(self, page: ft.Page, on_saved: Callable[[], None] = None, on_close: Callable[[], None] = None, active_device_index: int = None):
         self.page = page
         self.settings = SettingsManager.load_from_file()
         self._on_saved = on_saved
         self._on_close_callback = on_close
+        self.active_device_index = active_device_index
         
         try:
             logger.info("Initializing SettingsTab controls...")
@@ -125,7 +126,7 @@ class SettingsTab:
         # Device settings
         logger.info("Querying devices...")
         try:
-            device_dict = devices_query()
+            device_dict = devices_query(current_device_index=self.active_device_index, test_rate=self.settings.rate)
             logger.info(f"Found {len(device_dict)} devices")
         except Exception as e:
             logger.error(f"Error querying devices: {e}")

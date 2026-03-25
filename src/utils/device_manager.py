@@ -50,22 +50,29 @@ class DeviceManager:
         raise RuntimeError("No working audio input devices found.")
 
 
-def devices_query() -> Dict[int, str]:
+def devices_query(current_device_index: int = None, test_rate: int = 16000) -> Dict[int, str]:
     """Get dict of working input devices {index: name}."""
     devices = [device for device in sd.query_devices() if device['max_input_channels'] > 0]
     working_devices = {}
     
     for device in devices:
+        index = device['index']
+        # Skip testing if it's our currently used device because we know it works
+        # and opening it again might throw a PortAudio error or lock it.
+        if index == current_device_index:
+            working_devices[index] = device['name']
+            continue
+            
         # Test if device is working
         try:
             test_stream = sd.InputStream(
-                device=device['index'],
+                device=index,
                 channels=1,
-                samplerate=16000,  # Use standard rate for testing
+                samplerate=test_rate,
                 dtype='int16',
             )
             test_stream.close()
-            working_devices[device['index']] = device['name']
+            working_devices[index] = device['name']
         except:
             pass  # Skip non-working devices
     

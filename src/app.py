@@ -73,6 +73,10 @@ class FlowlApp:
         if self.is_running():
             logger.info("Restarting app with new settings...", "APP")
             self.stop()
+            # Wait briefly to let the OS release the audio device lock.
+            # Without this, the DeviceManager might fail to test the saved device because it's still locked from stop(), causing it to incorrectly fall back to the default device.
+            import time
+            time.sleep(0.5)
             # Reload settings from file to get latest changes
             self.settings = SettingsManager.load_from_file()
             logger.info(f"Reloaded settings - device_index: {self.settings.device_index}", "APP")

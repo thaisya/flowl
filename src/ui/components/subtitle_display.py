@@ -36,11 +36,10 @@ class SubtitleDisplay(ft.Container):
         )
         
         self.loading_text = ft.Text(
-            value="Loading models...",
+            value="Loading",
             size=self.settings.font_size,
             color=self.settings.font_color,
             weight=ft.FontWeight.BOLD,
-            text_align=ft.TextAlign.CENTER,
             visible=False,
         )
 

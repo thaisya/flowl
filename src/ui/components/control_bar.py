@@ -191,21 +191,21 @@ class ControlBar(ft.Container):
             ]
         )
 
-        logger_btn = ft.IconButton(
+        self.logger_btn = ft.IconButton(
             icon=ft.Icons.RECEIPT_LONG,
             icon_color=ft.Colors.WHITE,
             tooltip="Show/Hide Logs",
             on_click=on_logger_toggle
         )
 
-        minimize_btn = ft.IconButton(
+        self.minimize_btn = ft.IconButton(
             icon=ft.Icons.REMOVE,
             icon_color=ft.Colors.WHITE,
             tooltip="Minimize",
             on_click=self._on_minimize
         )
 
-        close_btn = ft.IconButton(
+        self.close_btn = ft.IconButton(
             icon=ft.Icons.CLOSE,
             icon_color=ft.Colors.RED_400,
             tooltip="Close App",
@@ -232,6 +232,7 @@ class ControlBar(ft.Container):
                 ft.Container(
                     content=self.lock_btn,
                     alignment=ft.alignment.center_left,
+                    expand=1
                 ),
                 # Center: Language Selector (Explicitly centered)
                 ft.Container(
@@ -243,16 +244,17 @@ class ControlBar(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            logger_btn,
+                            self.logger_btn,
                             self.settings_btn,
-                            minimize_btn,
-                            close_btn,
+                            self.minimize_btn,
+                            self.close_btn,
                         ],
                         spacing=0,
                         alignment=ft.MainAxisAlignment.END,
                         tight=True
                     ),
                     alignment=ft.alignment.center_right,
+                    expand=1
                 ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -266,6 +268,7 @@ class ControlBar(ft.Container):
             self.lock_btn.icon = ft.Icons.LOCK
             self.lock_btn.tooltip = f"Locked (Press {self.settings.lock_hotkey} to unlock)"
             self.lock_btn.icon_color = ft.Colors.RED_400
+            self.settings_btn.visible = False
             self.settings_btn.disabled = True
             
             self.from_btn.disabled = True
@@ -278,10 +281,14 @@ class ControlBar(ft.Container):
                 
             self.swap_btn.disabled = True
             self.swap_btn.icon_color = ft.Colors.GREY
+
+            self.logger_btn.visible = False
+            self.logger_btn.disabled = True
         else:
             self.lock_btn.icon = ft.Icons.LOCK_OPEN
             self.lock_btn.tooltip = f"Unlocked (Press {self.settings.lock_hotkey} to lock)"
             self.lock_btn.icon_color = ft.Colors.WHITE54
+            self.settings_btn.visible = True
             self.settings_btn.disabled = False
             
             self.from_btn.disabled = False
@@ -294,6 +301,9 @@ class ControlBar(ft.Container):
                 
             self.swap_btn.disabled = False
             self.swap_btn.icon_color = ft.Colors.WHITE
+            
+            self.logger_btn.visible = True
+            self.logger_btn.disabled = False
         
         if self.page:
             self.update()
