@@ -94,6 +94,7 @@ class SettingsTab:
             options=[
                 ft.dropdown.Option("en", "English (en)"),
                 ft.dropdown.Option("ru", "Russian (ru)"),
+                ft.dropdown.Option("ko", "Korean (ko)"),
             ],
             value=self.settings.from_code,
             on_change=self._on_language_change,
@@ -105,6 +106,7 @@ class SettingsTab:
             options=[
                 ft.dropdown.Option("ru", "Russian (ru)"),
                 ft.dropdown.Option("en", "English (en)"),
+                ft.dropdown.Option("ko", "Korean (ko)"),
             ],
             value=self.settings.to_code,
             on_change=self._on_language_change,
@@ -159,6 +161,13 @@ class SettingsTab:
             label="Lock Screen Hotkey",
             value=self.settings.lock_hotkey,
             hint_text="e.g. ctrl+alt+l",
+            width=300,
+        )
+        
+        self.max_screen_words_field = ft.TextField(
+            label="Max Screen Words (0 to disable)",
+            value=str(self.settings.max_screen_words),
+            input_filter=ft.NumbersOnlyInputFilter(),
             width=300,
         )
         
@@ -240,6 +249,9 @@ class SettingsTab:
                         ft.Text("Keybind Settings", size=16, weight=ft.FontWeight.BOLD),
                         self.lock_hotkey_field,
                         ft.Divider(),
+                        ft.Text("Display Settings", size=16, weight=ft.FontWeight.BOLD),
+                        self.max_screen_words_field,
+                        ft.Divider(),
                         ft.Text("Current Configuration", size=16, weight=ft.FontWeight.BOLD),
                         self.config_info,
                     ],
@@ -298,6 +310,7 @@ class SettingsTab:
         self.to_lang_dropdown.value = default_settings.to_code
         
         self.lock_hotkey_field.value = default_settings.lock_hotkey
+        self.max_screen_words_field.value = str(default_settings.max_screen_words)
         
         self.settings = default_settings
         self._update_model_paths()
@@ -338,6 +351,9 @@ class SettingsTab:
             # Keybind settings
             self.settings.lock_hotkey = self.lock_hotkey_field.value.strip()
 
+            # Display settings
+            self.settings.max_screen_words = int(self.max_screen_words_field.value)
+
             # Validate settings
             self._validate()
 
@@ -371,11 +387,14 @@ class SettingsTab:
 
         if self.settings.min_part_chars <= 0:
             raise ValueError(f"Invalid min_part_chars: {self.settings.min_part_chars}")
+            
+        if self.settings.max_screen_words < 0:
+            raise ValueError(f"Invalid max_screen_words: {self.settings.max_screen_words}")
 
-        if self.settings.from_code not in ["en", "ru"]:
+        if self.settings.from_code not in ["en", "ru", "ko"]:
             raise ValueError(f"Invalid from_code: {self.settings.from_code}")
 
-        if self.settings.to_code not in ["en", "ru"]:
+        if self.settings.to_code not in ["en", "ru", "ko"]:
             raise ValueError(f"Invalid to_code: {self.settings.to_code}")
     
     def _show_error(self, title: str, message: str):

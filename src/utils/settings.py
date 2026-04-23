@@ -21,7 +21,7 @@ class SettingsManager:
     # Language configuration
     from_code: str = "en"
     to_code: str = "ru"
-    aviable_langs: tuple = ("en", "ru")
+    aviable_langs: tuple = ("en", "ru", "ko")
     
     # Device settings
     device_index: int = None
@@ -38,10 +38,14 @@ class SettingsManager:
     # Keybind configuration
     lock_hotkey: str = "ctrl+alt+l"
     
+    # Text display limit
+    max_screen_words: int = 30
+    
     # Model configuration
     asr_model_paths: dict = field(default_factory=lambda: {
         "en": r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-en",
-        "ru": r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-ru"
+        "ru": r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-ru",
+        "ko": r"C:\Users\nikit\Desktop\Flowl_necessary_files\vosk-ko"
     })
     
     mt_model_paths: dict = field(default_factory=lambda: {

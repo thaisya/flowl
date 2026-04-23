@@ -247,7 +247,7 @@ class OverlayWindow(ft.Container):
             
         return accumulated, new_count
 
-    def update_translation(self, original: str, translated: str, is_final: bool = False):
+    def update_translation(self, original: str, translated: str, original_tail: str = "", translated_tail: str = "", is_final: bool = False):
         """
         Updates the subtitle display with new text.
         Handles merging partial sentences and rolling history when length exceeds Max History.
@@ -286,22 +286,26 @@ class OverlayWindow(ft.Container):
                 )
                 merged_translated = merged_translated + (" " if merged_translated else "") + self._accumulated_partial_translated
 
-        # Trim history if it gets too long
-        while len(merged_original) > self._max_history_chars and len(self._final_originals) > 0:
-            self._final_originals.pop(0)
-            merged_original = " ".join(self._final_originals)
-            if not is_final and original:
-                merged_original = merged_original + (" " if merged_original else "") + self._accumulated_partial_original
-                
-        while len(merged_translated) > self._max_history_chars and len(self._final_translated) > 0:
-            self._final_translated.pop(0)
-            merged_translated = " ".join(self._final_translated)
-            if not is_final and translated:
-                merged_translated = merged_translated + (" " if merged_translated else "") + self._accumulated_partial_translated
+        # Trim history if it gets too long based on word count
+        limit = self.settings.max_screen_words
+        if limit > 0:
+            def trim_text(text: str, w_limit: int) -> str:
+                words = text.split()
+                if len(words) > w_limit:
+                    return " ".join(words[-w_limit:])
+                return text
+
+            merged_original = trim_text(merged_original, limit)
+            merged_translated = trim_text(merged_translated, limit)
+            
+            # To prevent memory bloat, occasionally clear the underlying arrays if they get massive
+            if len(self._final_originals) > 100:
+                self._final_originals = self._final_originals[-50:]
+                self._final_translated = self._final_translated[-50:]
                 
         self.current_original = merged_original
         self.current_translated = merged_translated
-        self.subtitle_display.update_text(merged_original, merged_translated)
+        self.subtitle_display.update_text(merged_original, merged_translated, original_tail, translated_tail)
 
     def show_loading(self, is_loading: bool):
         """Show or hide the loading indicator."""

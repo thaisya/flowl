@@ -34,7 +34,8 @@ class ControlBar(ft.Container):
         
         self.flags = {
             "en": "🇺🇸",
-            "ru": "🇷🇺"
+            "ru": "🇷🇺",
+            "ko": "🇰🇷"
         }
 
         self.from_btn = ft.PopupMenuButton(

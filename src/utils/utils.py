@@ -1,7 +1,16 @@
-"""Small text utilities for Flowl."""
+"""Utilities for Flowl."""
 
 import time
+from typing import Sequence
 from .logger import logger
+
+def longest_common_prefix(seq1: Sequence, seq2: Sequence) -> Sequence:
+    """Return the longest common prefix of two sequences (strings, lists, etc)."""
+    min_len = min(len(seq1), len(seq2))
+    for i in range(min_len):
+        if seq1[i] != seq2[i]:
+            return seq1[:i]
+    return seq1[:min_len]
 
 def filter_partial(text: str, max_words: int) -> str:
     """Trim a partial string to the last max_words words."""

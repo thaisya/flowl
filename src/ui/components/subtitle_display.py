@@ -61,10 +61,36 @@ class SubtitleDisplay(ft.Container):
             tight=True,
         )
 
-    def update_text(self, original: str, translated: str):
+    def update_text(self, original: str, translated: str, original_tail: str = "", translated_tail: str = ""):
         """Update the text content."""
-        self.text_before_translation.value = original
-        self.text_after_translation.value = translated
+        if original_tail and original.endswith(original_tail):
+            stable_part = original[:-len(original_tail)]
+            self.text_before_translation.value = ""
+            self.text_before_translation.spans = [
+                ft.TextSpan(stable_part),
+                ft.TextSpan(
+                    original_tail, 
+                    style=ft.TextStyle(color=ft.Colors.with_opacity(0.4, self.settings.font_color))
+                )
+            ]
+        else:
+            self.text_before_translation.spans = None
+            self.text_before_translation.value = original
+
+        if translated_tail and translated.endswith(translated_tail):
+            trans_stable_part = translated[:-len(translated_tail)]
+            self.text_after_translation.value = ""
+            self.text_after_translation.spans = [
+                ft.TextSpan(trans_stable_part),
+                ft.TextSpan(
+                    translated_tail,
+                    style=ft.TextStyle(color=ft.Colors.with_opacity(0.4, self.settings.font_color))
+                )
+            ]
+        else:
+            self.text_after_translation.spans = None
+            self.text_after_translation.value = translated
+
         if self.page:
             self.update()
         else:

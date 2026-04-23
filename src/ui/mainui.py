@@ -172,10 +172,12 @@ class SlidingTextWindow:
     def _handle_trans_update(self, event_type: str, data: dict):
         if event_type in ["final", "partial"]:
             original = data.get('original', '')
+            original_tail = data.get('original_tail', '')
             translated = data.get('translated', '')
+            translated_tail = data.get('translated_tail', '')
             is_final = (event_type == "final")
             try:
-                self.overlay.update_translation(original, translated, is_final=is_final)
+                self.overlay.update_translation(original, translated, original_tail=original_tail, translated_tail=translated_tail, is_final=is_final)
             except Exception as e:
                 logger.error(f"Overlay update failed: {e}")
 

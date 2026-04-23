@@ -47,7 +47,7 @@ class FlowlApp:
                        f"{"with noise cancelling" if self.models.get_noise_reducer() is not None else "without noise cancelling"}")
 
         self.asr = ASRWorker(self.audio_q, self.events_q, self.models.recognizer, self._audio_lock, self._events_lock, self.settings)
-        self.mt = MTWorker(self.events_q, self.models.translate, self._events_lock, self._ui_callback, self.settings)
+        self.mt = MTWorker(self.events_q, self.models.translate, self.models.punct_restorer.restore, self._events_lock, self._ui_callback, self.settings)
 
 
     def _on_audio(self, in_data: bytes) -> None:

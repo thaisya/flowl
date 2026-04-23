@@ -9,6 +9,7 @@ from vosk import Model, KaldiRecognizer
 
 from utils.utils import exec_time_wrap
 from utils.logger import logger
+from models.punctuation import PunctuationRestorer
 
 
 class ModelBundle:
@@ -26,6 +27,8 @@ class ModelBundle:
             logger.warning(f"Failed to load torch: {e}, using CPU", "MODELS")
             self._device = "cpu"
 
+        self.punct_restorer = PunctuationRestorer(device=self._device)
+
         try:
             model_path = self.settings.model_path
             logger.info(f"Loading ASR model from: {model_path}", "MODELS")
@@ -37,16 +40,30 @@ class ModelBundle:
         
         try:
             mt_model_path = self.settings.mt_model_path
-            logger.info(f"Loading MT model: {mt_model_path}", "MODELS")
-            self._tokenizer = AutoTokenizer.from_pretrained(mt_model_path)
+            logger.info(f"Loading MT model(s): {mt_model_path}", "MODELS")
             
-            self._mt_model = AutoModelForSeq2SeqLM.from_pretrained(
-                mt_model_path,
-                dtype=torch.float16 if self._device == "cuda" else torch.float32
-            ).to(self._device)
-            
-            # Enable evaluation mode for faster inference
-            self._mt_model.eval()
+            self._is_pivot = "," in mt_model_path
+            if self._is_pivot:
+                self._tokenizers = []
+                self._mt_models = []
+                for path in mt_model_path.split(","):
+                    path = path.strip()
+                    logger.info(f"Loading pivot part: {path}", "MODELS")
+                    tok = AutoTokenizer.from_pretrained(path)
+                    mod = AutoModelForSeq2SeqLM.from_pretrained(
+                        path, dtype=torch.float16 if self._device == "cuda" else torch.float32
+                    ).to(self._device)
+                    mod.eval()
+                    self._tokenizers.append(tok)
+                    self._mt_models.append(mod)
+            else:
+                self._tokenizer = AutoTokenizer.from_pretrained(mt_model_path)
+                self._mt_model = AutoModelForSeq2SeqLM.from_pretrained(
+                    mt_model_path,
+                    dtype=torch.float16 if self._device == "cuda" else torch.float32
+                ).to(self._device)
+                self._mt_model.eval()
+                
             logger.info(f"MT model loaded successfully on {self._device}", "MODELS")
         except Exception as e:
             raise RuntimeError(f"Failed to load MT model {self.settings.mt_model_path}: {e}")
@@ -59,22 +76,69 @@ class ModelBundle:
             return self._translation_cache[text]
         
         try:
-            # Move inputs to the same device as the model
-            inputs = self._tokenizer(text, return_tensors="pt").to(self._device)
-            
-            # Use faster generation parameters
-            with torch.no_grad():  # Disable gradient computation for faster inference
-                outputs = self._mt_model.generate(
-                    **inputs,
-                    max_length=128,        # Reduced from 512
-                    num_beams=1,           # Keep greedy
-                    do_sample=False,       # Keep deterministic
-                    early_stopping=True,   # Stop early when possible
-                    pad_token_id=self._tokenizer.eos_token_id,
-                    use_cache=True,        # Enable KV cache
-                )
-            
-            result = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
+            if getattr(self, '_is_pivot', False):
+                current_text = text
+                for i in range(len(self._mt_models)):
+                    tok = self._tokenizers[i]
+                    mod = self._mt_models[i]
+                    inputs = tok(current_text, return_tensors="pt").to(self._device)
+                    with torch.no_grad():
+                        outputs = mod.generate(
+                            **inputs, 
+                            max_length=128, 
+                            num_beams=1, 
+                            do_sample=False, 
+                            early_stopping=True, 
+                            pad_token_id=tok.eos_token_id, 
+                            use_cache=True
+                        )
+                    current_text = tok.decode(outputs[0], skip_special_tokens=True)
+                result = current_text
+            else:
+                # Map Flowl short codes to NLLB target language codes
+                nllb_lang_map = {
+                    "ru": "rus_Cyrl",
+                    "en": "eng_Latn",
+                    "ko": "kor_Hang"
+                }
+                
+                # Check if we are using NLLB
+                if "nllb" in self.settings.mt_model_path.lower():
+                    src_lang = nllb_lang_map.get(self.settings.from_code, "eng_Latn")
+                    self._tokenizer.src_lang = src_lang
+                    target_lang = nllb_lang_map.get(self.settings.to_code, "eng_Latn")
+                
+                # Move inputs to the same device as the model
+                inputs = self._tokenizer(text, return_tensors="pt").to(self._device)
+                
+                # Use faster generation parameters
+                with torch.no_grad():  # Disable gradient computation for faster inference
+                    
+                    if "nllb" in self.settings.mt_model_path.lower():
+                        forced_bos_token_id = self._tokenizer.convert_tokens_to_ids(target_lang)
+                        outputs = self._mt_model.generate(
+                            **inputs,
+                            forced_bos_token_id=forced_bos_token_id,
+                            max_length=128,        # Reduced from 512
+                            num_beams=1,           # Keep greedy
+                            do_sample=False,       # Keep deterministic
+                            early_stopping=True,   # Stop early when possible
+                            pad_token_id=self._tokenizer.eos_token_id,
+                            use_cache=True,        # Enable KV cache
+                        )
+                    else:
+                        # Fallback for Helsinki/MarianMT
+                        outputs = self._mt_model.generate(
+                            **inputs,
+                            max_length=128,        # Reduced from 512
+                            num_beams=1,           # Keep greedy
+                            do_sample=False,       # Keep deterministic
+                            early_stopping=True,   # Stop early when possible
+                            pad_token_id=self._tokenizer.eos_token_id,
+                            use_cache=True,        # Enable KV cache
+                        )
+                
+                result = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
             
             # Cache the result
             if len(self._translation_cache) >= self._max_cache_size:
